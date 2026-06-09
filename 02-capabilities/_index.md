@@ -1,36 +1,26 @@
 # 02-capabilities
 
-The **capability catalogue.** One file per capability. Schema-driven.
+The **cross-vendor capability comparison.** One canonical artefact: [`capability-matrix.md`](capability-matrix.md).
 
-A *capability* is what the tool **can do** — independent of which firm decides to use it. Policies (what a firm decides to enforce) live in `03-policies/`. Keep the line clean.
+## What this folder answers
 
-## Schema (to write at `_schema.md` when first entry lands)
+> *"All five vendors claim they do DLP / OAuth governance / GenAI control. What does that claim actually look like per vendor, with what deployment-mode caveat, and where are the cells the vendor would rather you did not look?"*
 
-Each capability entry carries:
+If you are instead asking *"I have decided to enforce X — what does that policy look like across vendors"*, see [`../03-policies/`](../03-policies/) — that is the policy library.
 
-- **Name** — canonical name in this repo (avoid vendor branding).
-- **Definition** — one paragraph, neutral, no marketing language.
-- **Gartner pillar** — Visibility / Data Security / Threat Protection / Compliance.
-- **Deployment-mode dependency** — forward-proxy / reverse-proxy / API / log-based discovery / hybrid. Some capabilities only work in some modes.
-- **Vendor coverage matrix** — Netskope / Zscaler / Defender for Cloud Apps / Palo Alto Prisma / Skyhigh — supported? Caveats? Source URL + access date.
-- **Known limitations** — what the capability does *not* do (BYOD gaps, OAuth blind spots, encrypted-content limits, mobile-app coverage, etc.).
-- **Linked policies** — `03-policies/` entries that depend on this capability.
-- **Linked controls** — `06-compliance/` control mappings the capability enables evidence for.
-- **Three-lens sign-off** — Architect / Product / Compliance — when promoted from `_research/`.
+- **Capability** = the tool *can* do this (vendor property; this folder).
+- **Policy** = the firm has *decided to enforce* this (configuration decision; `03-policies/`).
 
-## Capabilities to draft (initial pass — confirm at thesis-lock)
+The capability matrix tells you what to expect in an RFP demo. The policy library tells you what a deployment of that capability looks like in a real firm.
 
-- Shadow-IT discovery (network-log-based)
-- Sanctioned-app inventory + risk-scoring
-- Inline DLP for sanctioned SaaS (proxy mode)
-- API-mode DLP for sanctioned SaaS (post-upload scan)
-- OAuth-app discovery and governance
-- Anomalous-activity detection (UEBA-style)
-- Compromised-account detection
-- Data-residency / geo-policy enforcement
-- Share-link governance (external sharing controls)
-- Malware scanning in SaaS storage
-- Encryption / tokenisation at the gateway
-- Threat intelligence integration
-- Risk-based session policy (step-up auth, read-only, watermark, block)
-- Generative-AI-app discovery + governance (2024–2026 SSE feature wave)
+## How to read the matrix
+
+- Cells: **S** Supported · **C** Caveat (short note) · **N** Not supported · **U** Unverified (vendor doc did not confirm).
+- `[unverified]` prefix = the lens reviewers flagged this cell or its source claim as unreliable / vendor-marketing-grade in the underlying draft.
+- Vendor codes: **MDA** Microsoft Defender for Cloud Apps · **NSK** Netskope One CASB · **PAN** Palo Alto Prisma Access (SaaS Security) · **SKY** Skyhigh CASB · **ZS** Zscaler ZIA CASB.
+
+The most useful read is the "What the matrix reveals" synthesis section at the bottom of [`capability-matrix.md`](capability-matrix.md). It surfaces the cross-vendor patterns (convergence below the floor, divergence in deployment-mode posture, dead capabilities, asymmetric depth) that the cell-by-cell view hides.
+
+## Status
+
+The matrix is the canonical artefact for this folder. Per-capability deep-dive files (one file per capability) are **not** built at v0.0 — the matrix is the synthesis and per-capability fragmentation is deferred to v0.2+ if/when cross-linking demand emerges from policy or vendor pages.

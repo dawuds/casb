@@ -14,7 +14,7 @@ You are a **security architect or platform engineer at a regulated financial-ser
 
 ## Skip this if
 
-You are doing a CASB vendor evaluation, scoring an RFP, or modelling licence cost. For vendor comparison, see `synthesis/capability-matrix.md`. For market mechanics, see `cyber-business/`.
+You are doing a CASB vendor evaluation, scoring an RFP, or modelling licence cost. For vendor comparison, see [`../02-capabilities/capability-matrix.md`](../02-capabilities/capability-matrix.md). For market mechanics, see `cyber-business/`.
 
 ## How to read this playbook
 

@@ -74,6 +74,37 @@
 | Capability + Policy individual entries (`02-capabilities/<capability>.md`, `03-policies/<policy>.md`) | TBD | If/when individual entries add value beyond the matrices |
 | Netskope / Zscaler / Palo Alto / Skyhigh practitioner playbooks at MDA depth | TBD | Apply the MDA template; run 5-specialist review per vendor |
 
+## 2026-06-10 navigation restructure event
+
+After the initial canonical population (above), a four-persona workflow (`ww0ujqgh6`) flagged the README navigation and the `02-capabilities/` vs `03-policies/` framing as confusing. Restructure executed same day:
+
+| Action | Detail |
+|---|---|
+| Renamed `02-capabilities/_capability-matrix.md` → `capability-matrix.md` | Drops the leading underscore — the file is canonical, not scaffolding |
+| Renamed `03-policies/_policy-archetypes.md` → `_archetype-index.md` | Downgraded from canonical synthesis to a navigation aid; the canonical synthesis is now the per-policy file |
+| Created `03-policies/_schema.md` | Extracted from `_index.md` for stable cross-referencing |
+| Created 19 per-policy files under `03-policies/{access-control,dlp,detect,oauth,genai,posture}/` | One file per policy following the schema; MDA column populated from the lens-reviewed v1 playbook, other vendor columns `[unverified]` until those drafts reach MDA depth |
+| Rewrote `README.md` | Replaced 9-row "How to navigate" table with a 3-row "Start here" table keyed off reader state (new-to-CASB / running MDA / planning a deployment); added "How the content is split" explaining capability vs policy vs vendor playbook; collapsed duplicate folder-list block |
+| Rewrote `02-capabilities/_index.md` | Surfaces the capability-vs-policy framing as a navigation principle; states that per-capability deep-dive files are deferred to v0.2+ |
+| Rewrote `03-policies/_index.md` | New folder layout (sub-foldered by control family); states the v0.0 status (MDA-tier reliable, other vendors `[unverified]`) |
+| Updated `CLAUDE.md` component model lines | Replaced "Capability catalogue — one entry per capability" with "Cross-vendor capability matrix (one canonical file)"; replaced "Policy catalogue — one entry per policy archetype" with "Policy library — one file per policy, sub-foldered by control family" |
+| Cross-reference patches | Updated stale refs in `01-foundations/market-motion.md`, `01-foundations/what-casb-is-and-isnt.md`, `04-vendors/microsoft-defender-for-cloud-apps.md`. `_research/` files NOT patched (historical record) |
+
+### Out of scope for this restructure
+
+Preserved verbatim: `04-vendors/microsoft-defender-for-cloud-apps.md` (Day 0 / Gaps / Day 1 / 30 / 90 / Appendices structure is the gold-standard shape); Netskope / Zscaler / Palo Alto / Skyhigh drafts (still at draft quality, vendor-implementation grid cells in the new policy files inherit their `[unverified]` flags); `06-compliance/` clause-by-clause mapping (still deferred to a separate deliverable); `07-implementation/` (six files, vendor-agnostic — preserved); `08-failure-modes/` (eight named failure modes — preserved); `01-foundations/` and `05-architecture/` (only cross-reference patches).
+
+### Outstanding for v0.1 (added by this restructure)
+
+| Item | Owner | Cadence |
+|---|---|---|
+| Backlinks from each of the 13 MDA policy sections to the corresponding `03-policies/<family>/<policy>.md` | TBD | Quick win |
+| Promote Netskope / Zscaler / Palo Alto / Skyhigh playbooks to MDA depth | TBD | Major undertaking; per-vendor 5-specialist workflow |
+| Fill in the vendor-implementation grid `[unverified]` cells across the 19 new policy files | TBD | After per-vendor playbooks reach MDA depth |
+| Three-lens review of the 19 new policy files | TBD | After grid is filled |
+| Re-section `capability-matrix.md` by control family to align with `03-policies/` sub-folders | TBD | Aligns the two synthesis surfaces |
+| `synthesis/dr-failmode-matrix.md` and `synthesis/scim-cascade-catalogue.md` (per `repo-wide-recommendations.md` from the earlier workflow) | TBD | Cross-vendor synthesis layer |
+
 ## Promotion criteria (going forward)
 
 For future promotion events:

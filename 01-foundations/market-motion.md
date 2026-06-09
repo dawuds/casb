@@ -115,5 +115,5 @@ For this repo's purposes: analyst material is cited as opinion with date + repor
 ## Reading order from here
 
 - [`../04-vendors/`](../04-vendors/) for per-vendor depth.
-- [`../02-capabilities/_capability-matrix.md`](../02-capabilities/_capability-matrix.md) for cross-vendor capability comparison.
+- [`../02-capabilities/capability-matrix.md`](../02-capabilities/capability-matrix.md) for cross-vendor capability comparison.
 - [`../08-failure-modes/`](../08-failure-modes/) for the "what they all fail at" view.

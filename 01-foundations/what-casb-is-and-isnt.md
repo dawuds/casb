@@ -53,7 +53,7 @@ See [`02-capabilities/`](../02-capabilities/) for the catalogue. Summary:
 - Risk-based session policy
 - Generative-AI-app discovery + governance (2024-2026 feature wave)
 
-Different CASB / SSE platforms cover this set with different depth and different deployment modes. The cross-vendor view is in [`02-capabilities/_capability-matrix.md`](../02-capabilities/_capability-matrix.md).
+Different CASB / SSE platforms cover this set with different depth and different deployment modes. The cross-vendor view is in [`02-capabilities/capability-matrix.md`](../02-capabilities/capability-matrix.md).
 
 ## What CASB **does not** cover (the unavoidable gaps)
 
@@ -85,5 +85,5 @@ If you are new to the discipline:
 2. [`deployment-modes.md`](deployment-modes.md) — how the proxy / API / log-based / hybrid choice is made.
 3. [`casb-inside-sse-sase.md`](casb-inside-sse-sase.md) — where the housing has gone.
 4. [`market-motion.md`](market-motion.md) — the pure-play → SSE-feature consolidation history.
-5. [`../02-capabilities/_capability-matrix.md`](../02-capabilities/_capability-matrix.md) — cross-vendor coverage.
+5. [`../02-capabilities/capability-matrix.md`](../02-capabilities/capability-matrix.md) — cross-vendor coverage.
 6. [`../04-vendors/microsoft-defender-for-cloud-apps.md`](../04-vendors/microsoft-defender-for-cloud-apps.md) — one vendor at depth.
