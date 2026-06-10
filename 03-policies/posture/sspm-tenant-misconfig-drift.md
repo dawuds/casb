@@ -1,14 +1,15 @@
 # SSPM — tenant misconfiguration drift
 
 > Status: v0.0 — adjacent to core CASB capability; CASB-light SSPM coverage; specialist SSPM tools have deeper coverage.
-> Depth: **Tier 2 — deep-dive**.
+> Depth: **Tier 2 — deep-dive (Microsoft-standards QA applied 2026-06-10)**.
 > Required capabilities: [API-mode + configuration-assessment integration](../../02-capabilities/capability-matrix.md).
 > Deployment-mode requirement: API connector.
-> MDA playbook reference: relates to App Governance posture features; not a numbered MDA Day 1/30/90 policy.
+> MDA playbook reference: relates to App Governance posture features; not a numbered MDA Day 1/30/90 policy. (Internal numbering — not Microsoft Learn documentation.)
+> **Microsoft architectural anchor:** Zero Trust Application pillar Objective VI ("Cloud applications are configured with secure controls") — see [Microsoft Learn: https://learn.microsoft.com/en-us/security/zero-trust/deploy/applications]. SaaS Security Posture Management (SSPM) capability surfaced via Defender for Cloud Apps App Governance — see [Microsoft Learn: https://learn.microsoft.com/en-us/defender-cloud-apps/saas-security-posture-management]. **Practitioner inference:** the specialist-SSPM-tool depth-vs-breadth framing (Adaptive Shield / AppOmni / Obsidian / Wing) is field judgment; Microsoft does not publish a comparative depth matrix.
 
 ## Purpose
 
-Continuously assess the security configuration posture of sanctioned SaaS tenants (Salesforce sharing settings, M365 attack-surface configuration, ServiceNow admin settings, etc.) against a documented posture-rule library. Detect drift from baseline. Maps to MITRE ATT&CK `T1098.001 Additional Cloud Credentials`, `T1098.003 Additional Cloud Roles`, `T1556 Modify Authentication Process`, and the broader cloud-misconfiguration class that adversaries (Storm-0501, MIDNIGHT BLIZZARD) exploit post-compromise to entrench persistence. **Important: CASB does this lightly — for deep coverage, dedicated SSPM tools (Adaptive Shield, AppOmni, Obsidian, Wing) are the right tier.**
+Continuously assess the security configuration posture of sanctioned SaaS tenants (Salesforce sharing settings, M365 attack-surface configuration, ServiceNow admin settings, etc.) against a documented posture-rule library. Detect drift from baseline. Maps to MITRE ATT&CK `T1098.001 Additional Cloud Credentials`, `T1098.003 Additional Cloud Roles`, `T1556 Modify Authentication Process`, and the broader cloud-misconfiguration class that adversaries (Storm-0501, Midnight Blizzard) exploit post-compromise to entrench persistence. Microsoft canonical threat-actor names per [Microsoft Learn: https://learn.microsoft.com/en-us/unified-secops/microsoft-threat-actor-naming]. **Important (practitioner inference):** CASB does this lightly — for deep coverage, dedicated SSPM tools (Adaptive Shield, AppOmni, Obsidian, Wing) are the right tier. Microsoft does not publish a depth-vs-breadth comparator.
 
 ## What organisations use this for
 
@@ -80,7 +81,7 @@ The W2 posture-rule library design is the hardest step. Off-the-shelf benchmarks
 
 | Vendor | Console path | Key configuration values | Deployment-mode caveat | Known trap |
 |---|---|---|---|---|
-| MDA | Defender portal → Cloud apps → App governance → Security configuration assessment (subset of connected apps) | Apps covered = M365, Salesforce, ServiceNow, GitHub, Okta, Box, Dropbox, Zendesk (per current docs); Posture rules = Microsoft Secure Score-derived + custom rules where supported; scan cadence = vendor-set, typically daily | Depth below SSPM specialists; coverage breadth limited; remediation actions limited to manual workflow | CASB SSPM is **shallow** — for tenant-deep posture (Salesforce profile/permission-set configuration, GitHub branch protection, M365 attack-surface), specialist SSPM is required. Drift-detection cadence daily at best, not real-time. Secure Score-derived rules drift in their underlying logic without operator notification — pin the rule version in the evidence pack |
+| MDA | Microsoft Defender Portal → Cloud Apps → App governance → Security configuration assessment (subset of connected apps). Coverage list per [Microsoft Learn: https://learn.microsoft.com/en-us/defender-cloud-apps/saas-security-posture-management]. | Apps covered = M365, Salesforce, ServiceNow, GitHub, Okta, Box, Dropbox, Zendesk (per Microsoft Learn `saas-security-posture-management`; **[VERIFY against current SSPM coverage list]** at attestation time); Posture rules = Microsoft Secure Score-derived ([Microsoft Learn: https://learn.microsoft.com/en-us/defender-xdr/microsoft-secure-score]; improvement actions per [https://learn.microsoft.com/en-us/defender-xdr/microsoft-secure-score-improvement-actions]) + custom rules where supported; scan cadence = vendor-set, typically daily | Depth below SSPM specialists; coverage breadth limited; remediation actions limited to manual workflow | CASB SSPM is **shallow** (practitioner inference; Microsoft does not publish depth comparator) — for tenant-deep posture (Salesforce profile/permission-set configuration, GitHub branch protection, M365 attack-surface), specialist SSPM is required. Drift-detection cadence daily at best, not real-time. **Practitioner hedge (not Microsoft-documented):** Secure Score-derived rules may drift in their underlying logic without operator notification — pin the rule version in the evidence pack. Microsoft documents Secure Score improvement-action changes via release notes only |
 | Netskope | `[unverified]` — Netskope SSPM module (separate licence) | | | |
 | Palo Alto Prisma Access | `[unverified]` — SaaS Security posture | | | |
 | Skyhigh | `[unverified]` — Skyhigh CASB + posture | | | |
@@ -179,6 +180,15 @@ The `first-scan-suppression: true` flag matters — without it, the first scan a
 
 ## Control mappings
 
+**Primary Microsoft-native baselines (auditor-defensibility critical — both must appear in every evidence pack):**
+
+- **CIS Microsoft 365 Foundations Benchmark v5.0.0 (30 April 2025)** — umbrella mapping CIS 2.4.3 (L2) "Ensure Microsoft Defender for Cloud Apps is configured" covering the SSPM capability set; per-control sub-mappings for tenant-specific rules vary by app (see file-specific posture-rule library). Microsoft Cloud App Security is the documented enforcement mechanism for CIS-specified posture controls. Source: CIS Benchmarks (downloads.cisecurity.org).
+- **Microsoft Secure Score** — Secure Score Apps + Identity + Data + Device groups (four-group structure; legacy five-group structure with Infrastructure is retired). SSPM rules are Secure Score-derived plus custom rules. Cite [Microsoft Learn: https://learn.microsoft.com/en-us/defender-xdr/microsoft-secure-score] and [Microsoft Learn: https://learn.microsoft.com/en-us/defender-xdr/microsoft-secure-score-improvement-actions]. Secure Score is the Microsoft-native posture-metric that auditors will probe for; evidence pack must include the score trend + improvement-action status per scan cycle.
+- **Microsoft Zero Trust Application pillar Objective VI** ("Cloud applications are configured with secure controls") — [Microsoft Learn: https://learn.microsoft.com/en-us/security/zero-trust/deploy/applications]. Architectural anchor for SaaS posture; Defender for Cloud Apps SSPM is the Microsoft-documented enforcement mechanism.
+- **Microsoft SaaS Security Posture Management (SSPM) overview** — [Microsoft Learn: https://learn.microsoft.com/en-us/defender-cloud-apps/saas-security-posture-management] — supported-app coverage list and posture-rule mechanics.
+
+**Regulatory and standards mappings (illustrative only; not regulatory advice):**
+
 - BNM RMiT clause(s): [BNM RMiT cloud services + third-party risk + concentration risk](../../06-compliance/malaysia/bnm-rmit.md) `[VERIFY against current edition]`
 - MAS TRM Annex C (cloud usage) `[VERIFY]`
 - ISO 27017 control(s): [CLD.6.3.1 shared responsibility, CLD.12.1.5 administrator's operational security, CLD.12.4.5 monitoring](../../06-compliance/iso-27017.md) `[VERIFY]`
@@ -198,7 +208,7 @@ The `first-scan-suppression: true` flag matters — without it, the first scan a
 
 ## Real-world FP experience
 
-Typical FP-rate trajectory in a tier-2 BFSI tenant new to CASB SSPM:
+Typical FP-rate trajectory in a tier-2 BFSI tenant new to CASB SSPM. **Practitioner-observed ranges; not from Microsoft documentation. Validate against tenant baseline.**
 
 | Week | Typical FP rate | Dominant cause |
 |---|---|---|
@@ -244,7 +254,7 @@ Typical staffing: 0.5 FTE central SSPM owner during the 10-week ramp (rule-libra
 - **Incident response runbook:** SSPM drift findings feed the IR scoping signal — if an OAuth-grant or admin-role-change finding precedes an alert from another control (mass-download, impossible-travel), the SSPM finding becomes corroborating context. The incident commander's runbook for cloud-tenant-compromise should reference the SSPM scan history as a first-15-minute pull
 - **Vendor / third-party risk:** SSPM-scan-derived posture status per SaaS vendor feeds the vendor-risk register's residual-risk score; vendor-risk-team uses SSPM evidence in the annual vendor reassessment
 - **DPIA refresh:** annual DPIA cycle reviews the posture-rule library scope (which tenants, which rules), the cross-border-scan posture, and the workforce-monitoring overlay
-- **Adaptive Protection (Purview IRM):** in advanced deployments, admin-role-change anomalies and break-glass-account-usage anomalies feed Purview IRM as boosted insider-risk signals — see MDA Policy 12 (IRM signal-boost integration)
+- **Adaptive Protection (Purview IRM):** in advanced deployments, admin-role-change anomalies and break-glass-account-usage anomalies feed Purview IRM as boosted insider-risk signals. Adaptive Protection now wires into DLP, DLM, and Conditional Access (not just CA). Cite [Microsoft Learn: https://learn.microsoft.com/en-us/purview/insider-risk-management-adaptive-protection]. See internal-playbook MDA Policy 12 (IRM signal-boost integration) — *internal numbering, not a Microsoft-documented policy name*
 - **Specialist-SSPM-tool decision:** the annual procurement / renewal cycle reviews the CASB SSPM coverage gap; the gap analysis is the input to the decide-keep / decide-procure-specialist / decide-replace conversation
 
 ## Anti-patterns specific to this policy

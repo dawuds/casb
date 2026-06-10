@@ -1,20 +1,22 @@
 # Inline prompt DLP
 
 > Status: v0.0 — MDA column lens-reviewed from playbook v1 (Policy 9 — Day 90); other vendors `[unverified]`.
-> Depth: **Tier 2 — deep-dive**.
+> Depth: **Tier 2 — deep-dive (Microsoft-standards QA applied 2026-06-10)**.
 > Required capabilities: [Risk-based session policy + Inline DLP + GenAI app governance](../../02-capabilities/capability-matrix.md).
 > Deployment-mode requirement: Reverse-proxy (CAAC). Entra ID P1 required. SAML federation prerequisite on the AI vendor side.
-> MDA playbook reference: [Policy 9](../../04-vendors/microsoft-defender-for-cloud-apps.md) (Block clipboard paste of sensitive data into ChatGPT).
+> MDA playbook reference: [Policy 9](../../04-vendors/microsoft-defender-for-cloud-apps.md) (Block clipboard paste of sensitive data into ChatGPT) — internal numbering, not a Microsoft Learn artefact.
 
 ## Purpose
 
-Block clipboard paste (and optionally Cut / Copy / Sent message) of cardholder data, SSN-class PII, source code, internal project codenames into sanctioned GenAI browser sessions. Counters MITRE ATT&CK `T1567 Exfiltration Over Web Service` narrowed to clipboard sub-channel (Prevent — partial). MITRE ATLAS `AML.T0024 Exfiltration via ML Inference API` — partial. **Not T1052 (Physical Medium)** — the original draft's mapping was wrong.
+Block clipboard paste (and optionally Cut / Copy / Sent message) of cardholder data, SSN-class PII, source code, internal project codenames into sanctioned GenAI browser sessions. Counters MITRE ATT&CK `T1567.002 Exfiltration to Cloud Storage` narrowed to clipboard sub-channel (Prevent — partial); the parent `T1567 Exfiltration Over Web Service` is the broader class. MITRE ATLAS `AML.T0024 Exfiltration via AI Inference API` — partial. (Lineage note: an earlier draft mis-mapped this to T1052 Physical Medium; corrected here. See changelog.)
 
 ## What organisations use this for
 
 This policy is what BFSI security teams reach for when the board has signed off on a ChatGPT Enterprise rollout and the audit committee wants a defensible answer to "what stops a developer pasting customer data into the prompt box". It is **prevention-leaning but session-scoped** — it only sees what passes through a CAAC-onboarded browser session against a SAML-federated AI tenant. It is not, and cannot be, the complete answer to GenAI data-loss risk. Most deployments pair it with DSPM-for-AI prompt-side visibility (where prompts and responses are captured natively by the AI vendor and surfaced to Purview / equivalent) to cover what session inspection cannot see — namely, what the user types directly rather than pastes.
 
 The hardest single decision is the SIT mix. Too narrow = the policy looks decorative and gets challenged at audit. Too broad = developers complain to their MD that ChatGPT is unusable, and the exception list explodes within a month.
+
+**Microsoft architectural anchor.** This policy sits inside the Data Zero Trust pillar (Objective III — DLP as a governance action) and the Application Zero Trust pillar (Objective III — discover and control shadow IT / GenAI use). Cite [Microsoft Learn: https://learn.microsoft.com/en-us/security/zero-trust/deploy/data] and [Microsoft Learn: https://learn.microsoft.com/en-us/security/zero-trust/deploy/applications]. Microsoft documents **Endpoint DLP** ([Microsoft Learn: https://learn.microsoft.com/en-us/purview/endpoint-dlp-learn-about]) and **Browser DLP via Edge for Business** ([Microsoft Learn: https://learn.microsoft.com/en-us/purview/dlp-browser-dlp-learn] and [Microsoft Learn: https://learn.microsoft.com/en-us/purview/dlp-create-policy-prevent-cloud-sharing-from-edge-biz]) as the primary documented controls for "block paste of sensitive content into third-party AI sites". CAAC inline prompt DLP is the cross-browser fallback; Endpoint DLP / Edge for Business are the Microsoft-primary path on Windows-onboarded estates.
 
 ### Use case 1 — Tier-1 ASEAN universal bank, ChatGPT Enterprise rollout with developer pressure
 
@@ -48,6 +50,8 @@ The hardest single decision is the SIT mix. Too narrow = the policy looks decora
 
 Typical 12-week rollout for a tier-2 BFSI tenant new to CAAC session policies on GenAI apps. The DPIA cycle is the long pole — start it before W1 if you do not already have one covering clipboard inspection.
 
+**Catalog-taxonomy note.** The Microsoft Cloud App Catalog classifies generative AI under a single "Generative AI" category (plus adjacent "AI – MCP Server" and "AI – Model Provider"); the five-way practitioner split (LLM / AI Coding Assistant / AI Image / AI Video / AI Voice-Avatar) is **not** in the current Microsoft taxonomy. Use **custom App tags** to carve sub-categories for policy scoping. Cite [Microsoft Learn: https://learn.microsoft.com/en-us/defender-cloud-apps/risk-score].
+
 | Week | Activity | Output / gate |
 |---|---|---|
 | W-4 → W0 | DPIA / TIA for clipboard inspection on sanctioned AI tools; workforce-monitoring notice update; works-council / employee-representative consultation where applicable (EU); legal sign-off on the audit-log content-snippet retention | DPIA approved; workforce notice issued; legal-sign-off recorded |
@@ -80,7 +84,7 @@ Skipping the W-4 DPIA cycle is the single most common procedural failure. Clipbo
 
 | Vendor | Console path | Key configuration values | Deployment-mode caveat | Known trap |
 |---|---|---|---|---|
-| MDA | Defender portal → Cloud apps → Policies → Policy management → Conditional Access → Create Session policy. Plus matching Entra CA policy with "Use Conditional Access App Control" | Session control type = Block activities; App = Custom ChatGPT Enterprise (Manual onboarding); Activity type = Clipboard Paste (+ Sent message with content inspection); Inspection method = DCS; SIT = Credit Card + jurisdiction PII + custom codename SIT + source-code-fragment classifier; Action = Block with custom user-education message; start with Audit, escalate to Block per SIT after FP tuning | **ChatGPT must be onboarded to CAAC via SAML federation. Consumer ChatGPT (chat.openai.com with free or personal Plus account) does NOT support SAML.** Deployable ONLY against ChatGPT Enterprise or ChatGPT Team plan with SSO configured (verify against OpenAI's current SSO-by-plan page on day of deployment) `[VERIFY]` | Clipboard inspection is **high-intrusion processing** under GDPR Art. 35 / equivalent — DPIA before pilot. Audit log may retain truncated content snippets — itself regulated content. At 5k seats, clipboard inspection inflates Sentinel ingest by ~100 GB/month (sysint estimate). Policy only covers the browser session on CAAC-onboarded ChatGPT URL — opening ChatGPT in different browser / desktop app (Mac/Windows clients exist) / personal device / personal account = bypass |
+| MDA | Microsoft Defender Portal → Cloud Apps → Policies → Policy management → Conditional Access → Create Session policy. Plus matching Entra CA policy with "Use Conditional Access App Control" | Session control type = Block activities; App = Custom ChatGPT Enterprise (Manual onboarding); Activity type = Clipboard Paste (+ Sent message with content inspection); Inspection method = DCS; SIT = Credit Card + jurisdiction PII + custom codename SIT + source-code-fragment classifier; Action = Block with custom user-education message; start with Audit, escalate to Block per SIT after FP tuning | **ChatGPT must be onboarded to CAAC via SAML federation. Consumer ChatGPT (chat.openai.com with free or personal Plus account) does NOT support SAML.** Deployable ONLY against ChatGPT Enterprise or ChatGPT Team plan with SSO configured (verify against OpenAI's current SSO-by-plan page on day of deployment) `[VERIFY]` | Clipboard inspection is **high-intrusion processing** under GDPR Art. 35 / equivalent — DPIA before pilot. Audit log may retain truncated content snippets — itself regulated content. At 5k seats, clipboard inspection inflates Sentinel ingest by ~100 GB/month (practitioner observation; not Microsoft-documented). Policy only covers the browser session on CAAC-onboarded ChatGPT URL — opening ChatGPT in different browser / desktop app (Mac/Windows clients exist) / personal device / personal account = bypass. **Edge for Business note:** Edge users get direct in-browser protection per [Microsoft Learn: https://learn.microsoft.com/en-us/defender-cloud-apps/proxy-intro-aad]; `*.mcas.ms` URL rewrite is the reverse-proxy path for non-Edge browsers. |
 | Netskope | `[unverified]` — Netskope inline GenAI policy with prompt-content inspection | | | |
 | Palo Alto Prisma Access | `[unverified]` — Prisma Access inline GenAI controls | | | |
 | Skyhigh | `[unverified]` — Skyhigh inline GenAI | | | |
@@ -88,7 +92,7 @@ Skipping the W-4 DPIA cycle is the single most common procedural failure. Clipbo
 
 ## Worked configuration example (tier-2 BFSI baseline)
 
-Anonymised configuration values for a tier-2 ASEAN BFSI tenant after FP-tuning is complete (W12+, per-SIT promotion done):
+Anonymised configuration values for a tier-2 ASEAN BFSI tenant after FP-tuning is complete (W12+, per-SIT promotion done). **Parameter naming note:** Microsoft Purview SIT parameters are documented as "instance count" (`minCount` / `maxCount`) and "confidence level" (`confidenceLevel`); the older `minimum_violations` / `minimum_unique_matches` synonyms below are practitioner shorthand. Use the documented names in production exports. Cite [Microsoft Learn: https://learn.microsoft.com/en-us/purview/sit-modify-a-custom-sensitive-information-type].
 
 ```yaml
 policy:
@@ -116,29 +120,29 @@ policy:
     sensitive_information_types:
       # promoted to Block after W8 tuning
       - id: "credit-card-number"
-        confidence: 85
-        minimum_violations: 1
+        confidenceLevel: High                        # documented Microsoft parameter
+        minCount: 1                                  # instance count (documented)
         action: Block
       - id: "malaysia-nric"
-        confidence: 85
-        minimum_violations: 1
+        confidenceLevel: High
+        minCount: 1
         action: Block
       - id: "iban"
-        confidence: 85
-        minimum_violations: 1
+        confidenceLevel: High
+        minCount: 1
         action: Block
       # held at Audit pending further tuning (W12 state)
       - id: "custom-sit:internal-codename-active"    # refreshed weekly from engagement system
-        confidence: 75
-        minimum_violations: 1
+        confidenceLevel: Medium
+        minCount: 1
         action: Audit
       - id: "custom-sit:source-code-fragment"        # internal repo path family
-        confidence: 80
-        minimum_violations: 1
+        confidenceLevel: Medium
+        minCount: 1
         action: Audit
       - id: "custom-sit:api-key-regex-pack"          # AWS / GCP / GitHub PAT + internal secret-store
-        confidence: 90
-        minimum_violations: 1
+        confidenceLevel: High
+        minCount: 1
         action: Block                                # narrow regex, safe to block
   governance:
     block_message:
@@ -158,14 +162,14 @@ policy:
     snippet_access_control: ["dlp-admin-group"]
   sentinel_forward:
     enabled: true
-    ingest_estimate_gb_per_month: 100                # ~5k seats; budget line, not just privacy
+    ingest_estimate_gb_per_month: 100                # ~5k seats; practitioner estimate, not Microsoft-documented
   custom_sit_refresh:
     internal_codename_feed: "engagement-management-export"
     cadence: "weekly"
     freshness_alert_days: 3                          # alert if feed has not refreshed
 ```
 
-The `confidence: 85` floor on the productised SITs (Credit Card, NRIC, IBAN) is the typical post-tuning baseline for tenant-wide Block. Lower confidence = developer revolt within a week. The custom SITs sit on a different curve — they need a longer audit-only soak because the FP profile is org-specific rather than format-driven.
+A `confidenceLevel: High` floor on the productised SITs (Credit Card, NRIC, IBAN) is the typical post-tuning baseline for tenant-wide Block. Lower confidence = developer revolt within a week. The custom SITs sit on a different curve — they need a longer audit-only soak because the FP profile is org-specific rather than format-driven.
 
 ## Variants
 
@@ -182,13 +186,18 @@ The `confidence: 85` floor on the productised SITs (Credit Card, NRIC, IBAN) is 
 
 - **Immature deployment:** one session policy, all SITs at vendor-default confidence (~50%), tenant-wide, Block on day one, no DPIA, no workforce notice update, no DSPM-for-AI pairing. Within 4 weeks: developer revolt, executive exception list growing weekly, a typing-instead-of-pasting workaround circulating internally. By month 6 the policy is rolled back to Audit-only or quietly disabled. The auditor finds the rollback and the programme loses credibility.
 
-- **Mature deployment:** per-SIT confidence tuning complete; productised SITs (cardholder data, jurisdiction PII) at Block with confidence ≥85%; custom SITs (codenames, source-code, internal secrets) under quarterly refresh with documented FP rate; DPIA refreshed semi-annually; exception register published and signed off by Privacy + Legal; SOC triage runbook integrated with the broader DLP-ops queue; FP rate <15% steady-state; clipboard-inspection ingest line documented in the SIEM budget.
+- **Mature deployment:** per-SIT confidence tuning complete; productised SITs (cardholder data, jurisdiction PII) at Block with `confidenceLevel: High`; custom SITs (codenames, source-code, internal secrets) under quarterly refresh with documented FP rate; DPIA refreshed semi-annually; exception register published and signed off by Privacy + Legal; SOC triage runbook integrated with the broader DLP-ops queue; FP rate <15% steady-state; clipboard-inspection ingest line documented in the SIEM budget.
 
-- **Advanced deployment:** per-user-group SIT mix (developers get source-code + secrets SITs; RMs get customer-PII SITs; legal gets matter-codename SITs); custom-SIT refresh fully automated from authoritative source (engagement system, secrets-store inventory, BIN-list system) with freshness monitoring; paired with DSPM-for-AI prompt capture for typed-content visibility; correlated with Purview IRM as an additional insider-risk signal; coach-message effectiveness measured (does the audit-event count for a coached SIT drop over the 90 days following first coach?); per-SIT TP rate published as a control-effectiveness metric on the GRC dashboard; integration with Edge for Business `gen-ai.app-control` browser-layer enforcement (2026 H2) on Edge-on-Windows estates removes the SAML-federation prerequisite for a subset of apps `[VERIFY against current MS roadmap]`.
+- **Advanced deployment:** per-user-group SIT mix (developers get source-code + secrets SITs; RMs get customer-PII SITs; legal gets matter-codename SITs); custom-SIT refresh fully automated from authoritative source (engagement system, secrets-store inventory, BIN-list system) with freshness monitoring; paired with DSPM-for-AI prompt capture for typed-content visibility; correlated with Purview IRM as an additional insider-risk signal; coach-message effectiveness measured (does the audit-event count for a coached SIT drop over the 90 days following first coach?); per-SIT TP rate published as a control-effectiveness metric on the GRC dashboard; integration with **Browser DLP via Edge for Business** ([Microsoft Learn: https://learn.microsoft.com/en-us/purview/dlp-browser-dlp-learn] and [Microsoft Learn: https://learn.microsoft.com/en-us/purview/dlp-create-policy-prevent-cloud-sharing-from-edge-biz]) as the Microsoft-primary browser-layer enforcement for Edge-on-Windows estates — removes the SAML-federation prerequisite for a subset of apps `[VERIFY GA date against current Microsoft 365 roadmap]`.
 
 ## Control mappings
 
-- BNM RMiT clause(s): [BNM RMiT data leakage + AI governance overlay](../../06-compliance/malaysia/bnm-rmit.md) `[VERIFY against current edition — RMiT does not yet name GenAI explicitly; mapping is via the broader data-leakage and technology-risk clauses]`
+- **CIS Microsoft 365 Foundations Benchmark v5.0.0** (30 April 2025): CIS 3.2.1 (L1) — DLP policy for sensitive-data SITs; CIS 3.3.1 (L1) — Information protection (sensitivity labels) where applicable; CIS 2.4.3 (L2) — umbrella Defender for Cloud Apps deployment for SaaS-app session governance. Cite [Microsoft Learn: https://learn.microsoft.com/en-us/defender-xdr/microsoft-secure-score-improvement-actions].
+- **Microsoft Secure Score** (Data + Apps groups): contributes to "Set up data loss prevention (DLP) policies" + "Sanction or unsanction cloud apps" improvement actions. Cite [Microsoft Learn: https://learn.microsoft.com/en-us/defender-xdr/microsoft-secure-score] and [Microsoft Learn: https://learn.microsoft.com/en-us/defender-xdr/microsoft-secure-score-improvement-actions]. Secure Score now uses the four-group structure (Identity / Device / Apps / Data).
+- **Microsoft Zero Trust — Data pillar:** Objective III "Apply data loss prevention". Cite [Microsoft Learn: https://learn.microsoft.com/en-us/security/zero-trust/deploy/data].
+- **Microsoft Zero Trust — Applications pillar:** Objective III "Discover and control the use of shadow IT" + Objective V "Apply analytics to detect threats and anomalies in SaaS apps". Cite [Microsoft Learn: https://learn.microsoft.com/en-us/security/zero-trust/deploy/applications].
+- **Microsoft Purview Adaptive Protection:** wires DLP signal into DLM, DLP, and Conditional Access — repeat-coach-then-block patterns feed Insider Risk dynamic risk levels. Cite [Microsoft Learn: https://learn.microsoft.com/en-us/purview/insider-risk-management-adaptive-protection].
+- BNM RMiT clause(s): [BNM RMiT data leakage + AI governance overlay](../../06-compliance/malaysia/bnm-rmit.md) `[VERIFY against current edition — RMiT does not yet name GenAI explicitly; mapping is via the broader data-leakage and technology-risk clauses]`. Material on regulatory clauses is illustrative only — not regulatory advice.
 - PDPA MY 2024: personal-data protection at the prompt boundary; workforce-monitoring notice requirements
 - HKMA SA-2 / MAS TRM: technology-risk and data-protection overlays `[VERIFY per current edition]`
 - ISO 27017 control(s): [CLD.12.4.5 monitoring](../../06-compliance/iso-27017.md) `[VERIFY]`
@@ -196,7 +205,8 @@ The `confidence: 85` floor on the productised SITs (Credit Card, NRIC, IBAN) is 
 - ISO/IEC 42001 (AI management system): governance of inputs to AI systems `[VERIFY clause]`
 - NIST CSF 2.0 subcategory(ies): `PR.DS-05` (data leak protection), `DE.CM-09` (monitoring of unauthorized personnel) `[VERIFY]`
 - NIST AI RMF 1.0: MAP / MEASURE functions on data-input controls `[VERIFY]`
-- MITRE ATLAS: `AML.T0024` (Exfiltration via ML Inference API) — partial via clipboard inspection
+- MITRE ATT&CK: `T1567.002 Exfiltration to Cloud Storage` (narrowed to clipboard sub-channel) — partial; parent `T1567 Exfiltration Over Web Service` for the broader class
+- MITRE ATLAS: `AML.T0024 Exfiltration via AI Inference API` — partial via clipboard inspection
 - EU AI Act: high-risk-system input-governance overlay where the consumer-facing AI use is itself in scope `[VERIFY]`
 - PCI DSS v4.0: where cardholder data is in the SIT mix, Req. 3 (protect cardholder data) and Req. 12.10 (incident response — prompt-leak runbook)
 
@@ -208,6 +218,8 @@ The `confidence: 85` floor on the productised SITs (Credit Card, NRIC, IBAN) is 
 - Source-code-fragment classifier fires on documentation pastes and StackOverflow-style snippets that incidentally include public-library identifier strings
 
 ## Real-world FP experience
+
+> **Practitioner-observed ranges; not from Microsoft documentation. Validate against tenant baseline.**
 
 Typical FP-rate trajectory in a tier-2 BFSI tenant new to inline GenAI prompt DLP (assumes the recommended audit-then-block phasing):
 
@@ -223,9 +235,9 @@ Named FP scenarios encountered repeatedly across deployments:
 
 | Scenario | Mitigation |
 |---|---|
-| 16-digit customer reference numbers / order IDs passing Luhn check fire as Credit Card | Raise Credit Card SIT confidence to ≥85%; add custom exclusion regex for the firm's own reference-number format |
+| 16-digit customer reference numbers / order IDs passing Luhn check fire as Credit Card | Raise Credit Card SIT to `confidenceLevel: High`; add custom exclusion regex for the firm's own reference-number format |
 | Internal project codename collides with a public vendor product name | Allowlist the specific collision string in the custom-codename SIT exclusion list; review weekly when the codename feed refreshes |
-| Source-code-fragment classifier fires on documentation prose that contains public-library identifiers (e.g. `numpy.array`) | Tune source-code classifier to require minimum-violations ≥3 OR exclude prose-context detections; alternatively keep at Audit, never Block |
+| Source-code-fragment classifier fires on documentation prose that contains public-library identifiers (e.g. `numpy.array`) | Tune source-code classifier to require `minCount: 3` or higher OR exclude prose-context detections; alternatively keep at Audit, never Block |
 | API-key regex matches a UUID that resembles a token format | Tighten regex with prefix-anchor (e.g. AWS keys must start with `AKIA`); reject UUIDs by structural test |
 | Developer pastes unit-test fixture containing fake PII (synthetic SSN like `123-45-6789`) | Treat as FP and exclude well-known synthetic-PII patterns; alternatively accept as TP because the behaviour itself is the leak (synthetic-vs-real distinction may not be obvious to the user) |
 | OCR'd screenshot pasted — text is recognised by DCS as Credit Card | Often accepted as TP because real cardholder data has been pasted; the screenshot-as-paste vector is the threat |
@@ -235,10 +247,10 @@ Named FP scenarios encountered repeatedly across deployments:
 
 ## Operational cost
 
-- **Exception-handling load:** medium during the W4-W12 tuning ramp (10-20 exception requests per week typical for a 5k-seat pilot); low steady-state (3-8 per week)
-- **Triage load:** high during audit phase (typical 200-400 audit events per day for a 5k-seat tenant at W1, falling to 30-80 at steady-state); medium ongoing after Block-action promotion (Block events themselves are usually TP, but the user-facing block requires a help-desk capacity for exception requests)
+- **Exception-handling load:** medium during the W4-W12 tuning ramp (10-20 exception requests per week typical for a 5k-seat pilot; practitioner observation); low steady-state (3-8 per week)
+- **Triage load:** high during audit phase (typical 200-400 audit events per day for a 5k-seat tenant at W1, falling to 30-80 at steady-state; practitioner observation); medium ongoing after Block-action promotion (Block events themselves are usually TP, but the user-facing block requires a help-desk capacity for exception requests)
 - **End-user friction:** medium-to-high during W1-W12; users see paste blocks; coaching message + sanctioned alternative essential. The first 30 days after Block-promotion typically produce the largest help-desk wave
-- **SIEM ingest cost:** material — at 5k seats, clipboard inspection inflates Sentinel ingest by ~100 GB/month (illustrative estimate, validate against actual). Budget line, not just a privacy concern
+- **SIEM ingest cost:** material — at 5k seats, clipboard inspection inflates Sentinel ingest by ~100 GB/month (practitioner estimate; not Microsoft-documented — validate against actual). Budget line, not just a privacy concern
 - **Custom-SIT operational dependency:** the internal-codename feed (and equivalent custom-SIT data sources) becomes a production dependency — needs freshness monitoring, named owner, on-call alert if feed goes stale
 
 Typical staffing: 0.5 FTE platform admin during the 12-week ramp; 0.3 FTE steady-state. DLP-ops analyst contributes another 0.3-0.5 FTE for triage during ramp, 0.1-0.2 FTE steady-state. AI Risk function (where one exists) commits ~0.1 FTE for the quarterly review.
@@ -248,7 +260,7 @@ Typical staffing: 0.5 FTE platform admin during the 12-week ramp; 0.3 FTE steady
 - Clipboard inspection on the user's browser is **high-intrusion processing** — DPIA mandatory under GDPR Art. 35 / equivalent; works-council / employee-representative consultation in EU jurisdictions
 - Workforce-notice posture: users must be informed in the AUP and onboarding materials that clipboard activity is inspected when accessing sanctioned AI tools — explicit, not buried
 - Truncated content snippets in audit log = regulated content — itself subject to storage controls. Tighten retention (typical: 30 days) and access controls (DLP-admin group only) below the M365 defaults
-- Cross-border: where DCS scanning happens vs where tenant data resides. For Malaysian / Singapore / Hong Kong tenants, Japan East primary-data region (2025 H2) `[VERIFY]` materially improved the cross-border posture
+- Cross-border: where DCS scanning happens vs where tenant data resides. For Malaysian / Singapore / Hong Kong tenants, **Japan East primary-data region** `[VERIFY against current Microsoft Cloud regions page — cite https://learn.microsoft.com/en-us/microsoft-365/enterprise/o365-data-locations on day of attestation]` materially improved the cross-border posture
 - DPIA scope must explicitly include: the SIT inventory, snippet retention and access, the typing-vs-pasting gap (transparency), the device-posture limitation (managed devices only — what happens on unmanaged is not seen), and the interaction with DSPM-for-AI prompt capture if paired
 - HR / works-council sensitivity: clipboard inspection can be characterised as surveillance — frame as data-protection control, not productivity monitoring; explicit no-individual-performance-evaluation commitment in workforce notice
 - PDPA MY 2024: workforce notice in employee handbook + AUP must cover SaaS-prompt-inspection scope explicitly
@@ -258,40 +270,46 @@ Typical staffing: 0.5 FTE platform admin during the 12-week ramp; 0.3 FTE steady
 - **PCI DSS audit cycle:** where Credit Card SIT is in the policy, the Block-rate + audit-event evidence feeds PCI DSS Req. 3 / Req. 12.10 attestation. Quarterly pull; annual auditor pull. The "data flowed to a third-party LLM" scenario is a Req. 4 (encryption in transit to third parties) consideration — coordinate with the CHD scoping team
 - **AI risk register / NIST AI RMF deliverables:** the policy is a MEASURE-function control on data-input governance; effectiveness metrics (audit events / Block events / coached events / FP rate) feed the AI risk register
 - **DPIA cycle:** annual refresh of the clipboard-inspection DPIA; semi-annual where the SIT mix changes materially or where the user-group scope expands
-- **Vendor-risk programme:** the sanctioned-AI vendor (OpenAI for ChatGPT Enterprise, Microsoft for Copilot Chat, etc.) is a sub-processor under PDPA / GDPR; sub-processor inventory + DPA review + SOC 2 / ISO 27018 attestation pull. Microsoft is concurrently the CASB sub-processor on the inspection side
+- **Vendor-risk programme:** the sanctioned-AI vendor (OpenAI for ChatGPT Enterprise, Microsoft for Copilot Chat, Anthropic for Claude Enterprise, etc.) is a sub-processor under PDPA / GDPR; sub-processor inventory + DPA review + SOC 2 / ISO 27018 attestation pull. Microsoft is concurrently the CASB sub-processor on the inspection side. **Claude Enterprise (preview) capability matrix per [Microsoft Learn: https://learn.microsoft.com/en-us/defender-cloud-apps/ai-claude-enterprise]:** DSPM + Audit ONLY; classification, DLP, sensitivity labels, IRM, and eDiscovery are NOT supported in the Microsoft integration. **ChatGPT Enterprise capability matrix per [Microsoft Learn: https://learn.microsoft.com/en-us/defender-cloud-apps/ai-chatgpt-enterprise]:** DSPM + Audit + Data classification + IRM + eDiscovery + DLM supported; DLP and sensitivity labels NOT supported. Plan paired controls accordingly — inline prompt DLP (this policy) covers the session-layer paste; vendor-side DSPM-for-AI is the complementary surface where supported.
 - **Board / executive reporting:** quarterly metric pair — (a) audit-event count + Block-event count by SIT family, trend; (b) measured behaviour change (audit-event volume for a given user group following first coach). Trend matters more than absolute number
-- **Incident response runbook:** a confirmed prompt-leak event (Block triggered with high-confidence TP, OR detected post-hoc via DSPM-for-AI) feeds the data-loss IR playbook; preservation hold via Purview eDiscovery; vendor-side data-subject request (vendor data-deletion API where the user's prompts can be expunged from the AI side)
-- **Insider Risk Management (Purview IRM or equivalent):** repeated coach-event-then-Block-event pattern by the same user is an IRM signal; correlate with departure signals (Use case 1 from `../detect/mass-download-alert.md` patterns)
+- **Incident response runbook:** a confirmed prompt-leak event (Block triggered with high-confidence TP, OR detected post-hoc via DSPM-for-AI) feeds the data-loss IR playbook; preservation hold via **Purview eDiscovery** (note: classic eDiscovery experiences retired 2025-08-31; cite [Microsoft Learn: https://learn.microsoft.com/en-us/purview/ediscovery-overview]); vendor-side data-subject request (vendor data-deletion API where the user's prompts can be expunged from the AI side)
+- **Insider Risk Management (Purview IRM or equivalent):** repeated coach-event-then-Block-event pattern by the same user is an IRM signal; correlate with departure signals (Use case 1 from `../detect/mass-download-alert.md` patterns). Adaptive Protection wires this into dynamic risk levels — cite [Microsoft Learn: https://learn.microsoft.com/en-us/purview/insider-risk-management-adaptive-protection].
 - **Audit committee / Group Risk:** for BFSI, the policy is the audit-defensible answer to "what stops a developer pasting customer data into ChatGPT" — explicit slot in the FY control inventory; control-effectiveness evidence pulled quarterly
 
 ## Anti-patterns specific to this policy
 
 1. **"Block on day one, tenant-wide, no audit-mode soak"** — developer revolt within a week; exception list explodes; programme rolled back; auditor finds the rollback. This is the single most common failure mode for inline prompt DLP rollouts
 2. **"Skip the DPIA / works-council consultation because we already have a DPIA for CASB"** — clipboard inspection is materially more intrusive than the at-rest API-mode CASB controls the existing DPIA covers; Privacy pulls the policy mid-pilot
-3. **"Use vendor-default SIT confidence (~50%) in production"** — produces the W1 40-60% FP rate; must raise to ≥85% on productised SITs for any production deployment
+3. **"Use vendor-default SIT confidence (~50%) in production"** — produces the W1 40-60% FP rate; must raise to `confidenceLevel: High` on productised SITs for any production deployment
 4. **"Block source-code-fragment matches"** — engineering pushback is severe and largely legitimate (Block on a documentation paste containing `numpy.array` is broken); keep source-code SITs at Coach + Audit, never Block
 5. **"Treat the inline policy as the complete answer to GenAI data-loss"** — clipboard inspection sees pasted content only. Typing instead of pasting is a fundamental bypass. Pair with DSPM-for-AI prompt capture; document the gap in the AI risk register
-6. **"Onboard consumer ChatGPT to CAAC"** — not possible. Consumer `chat.openai.com` does not support SAML. The policy applies only against ChatGPT Enterprise / Team plans with SSO. Treat consumer-AI access as a separate problem (Shadow-AI discovery + unsanction; see [`shadow-ai-discovery.md`](shadow-ai-discovery.md) and [`auto-unsanction-genai.md`](auto-unsanction-genai.md))
+6. **"Onboard consumer ChatGPT to CAAC"** — not possible. Consumer `chat.openai.com` does not support SAML. The policy applies only against ChatGPT Enterprise / Team plans with SSO. Treat consumer-AI access as a separate problem (Shadow-AI discovery + unsanction; see [`discovery-and-auto-unsanction.md`](discovery-and-auto-unsanction.md))
 7. **"Forget the desktop ChatGPT app"** — Mac and Windows native ChatGPT clients exist; CAAC reverse-proxy does not see them. Either block the desktop-client install via endpoint management, or accept the gap and document
 8. **"No exception process, no exception register"** — legitimate exceptions exist (legal eDiscovery, M&A team during active deal, named executive support roles). Without a documented exception path, users invent workarounds; you lose visibility on the legitimate exceptions and on the workaround behaviour
 9. **"Notify admins on every audit event"** — SOC fatigue. The coach-message-to-user IS the signal during audit phase; admin notification should fire only on Block events or on repeated-by-same-user audit clusters
 10. **"Let the custom-SIT feed (codenames / secrets / BIN list) go stale silently"** — the policy degrades into uselessness over weeks, and the auditor finds the gap. Freshness monitor + named owner on every custom-SIT data source
 11. **"Treat Block-event count as the primary metric"** — Block events are a small fraction of value; the larger value is behaviour change driven by audit + coach events. Track audit-event-volume-by-SIT trend over time as the control-effectiveness measure, not Block-count alone
+12. **"Rely on Microsoft sub-category split (LLM / AI Coding Assistant / AI Image / AI Video / AI Voice-Avatar) for scoping"** — that split is not in the current Microsoft Cloud App Catalog taxonomy (single "Generative AI" category + adjacent "AI – MCP Server" / "AI – Model Provider" only). Use custom App tags for sub-categorisation. Cite [Microsoft Learn: https://learn.microsoft.com/en-us/defender-cloud-apps/risk-score].
 
 ## Coverage gaps
 
 - Image / screenshot / audio of the same data (DCS does not OCR / transcribe at session layer)
 - **Typing instead of pasting (no paste event fires)** — fundamental bypass class. Pair with DSPM-for-AI prompt capture for the typed-content visibility
 - Desktop ChatGPT apps (Mac / Windows clients exist) — CAAC reverse-proxy not in path
-- Personal account on sanctioned-app domain (user signs in to ChatGPT with personal credentials instead of corporate SSO) — see [`shadow-ai-discovery.md`](shadow-ai-discovery.md)
-- Non-Edge browsers without CAAC routing — depends on enterprise browser strategy
+- Personal account on sanctioned-app domain (user signs in to ChatGPT with personal credentials instead of corporate SSO) — see [`discovery-and-auto-unsanction.md`](discovery-and-auto-unsanction.md)
+- Non-Edge browsers without CAAC routing — depends on enterprise browser strategy. Edge for Business users get direct in-browser protection per [Microsoft Learn: https://learn.microsoft.com/en-us/defender-cloud-apps/proxy-intro-aad].
 - Unmanaged devices — CAAC requires device-compliance; BYOD / hotspot / personal-laptop scenarios bypass the policy entirely
 - [API mode is not prevention](../../08-failure-modes/api-mode-is-not-prevention.md) does not apply (this is session-mode) but the analogue is **typed-not-pasted** = no inspection event fires
 - Slow-and-low prompt-by-prompt PII leak (one field at a time across many prompts) — neither inline DLP nor DSPM-for-AI catches the aggregate pattern reliably
-- 2026 alternative: Microsoft Edge for Business `gen-ai.app-control` (H2 2026 GA) `[VERIFY against current MS roadmap]` — browser-layer enforcement without SAML-federation prerequisite, for Edge-on-Windows estates; partial replacement for this policy on Edge-only estates
+- **Microsoft-primary alternative path:** Browser DLP via Edge for Business ([Microsoft Learn: https://learn.microsoft.com/en-us/purview/dlp-browser-dlp-learn] and [Microsoft Learn: https://learn.microsoft.com/en-us/purview/dlp-create-policy-prevent-cloud-sharing-from-edge-biz]) and Endpoint DLP ([Microsoft Learn: https://learn.microsoft.com/en-us/purview/endpoint-dlp-learn-about]) — browser-layer / endpoint-layer enforcement without SAML-federation prerequisite, for Edge-on-Windows / Windows-onboarded estates; partial replacement for this policy on Edge-only estates `[VERIFY GA scope for AI-site coverage against current Microsoft 365 roadmap]`.
 
 ## Three-lens sign-off
 
 - **Architect:** _pending_
 - **Product:** _pending_
 - **Compliance:** _pending_
+
+## Changelog
+
+- 2026-06-10 — Microsoft-standards QA remediation pass applied: added CIS v5.0.0 + Secure Score + Data ZT + Apps ZT + Adaptive Protection citations; corrected ATT&CK primary technique from T1567 to T1567.002; corrected ATLAS AML.T0024 name from "ML Inference API" to "AI Inference API"; SIT parameter naming aligned to Microsoft documented `confidenceLevel` / `minCount`; replaced "Edge for Business `gen-ai.app-control`" with documented Browser DLP via Edge for Business + Endpoint DLP cross-references; corrected Claude Enterprise capability matrix to DSPM + Audit only per `ai-claude-enterprise`; corrected ChatGPT Enterprise capability matrix per `ai-chatgpt-enterprise`; replaced "eDiscovery (Premium)" with "Purview eDiscovery" + retirement note; added GenAI sub-category caveat (no 5-way Microsoft split); added Japan East citation marker; added FP-trajectory practitioner-observation header; portal path standardised to Microsoft Defender Portal nomenclature.
+- Earlier draft mis-mapped this control to MITRE ATT&CK `T1052 Physical Medium`; corrected to `T1567.002` (and `AML.T0024`) — clipboard exfil to a cloud-hosted AI is web-service exfil, not removable-media.

@@ -1,20 +1,20 @@
 # High-scope OAuth grant alert
 
-> Status: v0.0 — MDA column from playbook v1 (Policy 2b — App Governance Predictive Risk + OAuth threshold, Day 30); other vendors `[unverified]`.
-> Depth: **Tier 2 — deep-dive**.
+> Status: v0.0 — MDA column from playbook v1 (Policy 2b — App Governance behavioural-anomaly detection + OAuth threshold, Day 30); other vendors `[unverified]`.
+> Depth: **Tier 2 — deep-dive (Microsoft-standards QA applied 2026-06-10)**.
 > Required capabilities: [OAuth-app discovery + Anomalous-activity detection](../../02-capabilities/capability-matrix.md).
 > Deployment-mode requirement: API connector + App Governance add-on (MDA-specific) or vendor equivalent.
 > MDA playbook reference: [Policy 2b](../../04-vendors/microsoft-defender-for-cloud-apps.md) (Day 30 OAuth behavioural detection).
 
 ## Purpose
 
-Alert on OAuth grants with high-permission scope (Mail.ReadWrite.All, Files.ReadWrite.All, Sites.FullControl.All, User.ReadWrite.All, Application.ReadWrite.All) regardless of publisher reputation. Covers the behavioural post-consent class — a legitimately-consented app suddenly expands scope, adds a new client credential, or starts behaving anomalously. Counters MITRE ATT&CK `T1098.001 Additional Cloud Credentials` (Detect), `T1550.001 Application Access Token` (Detect), `T1136.003 Cloud Account creation via service-principal` (Detect). Pairs with — does not replace — Entra admin-consent workflow + verified-publisher restriction, which is the primary preventive control for T1528.
+Alert on OAuth grants with high-permission scope (Mail.ReadWrite.All, Files.ReadWrite.All, Sites.FullControl.All, User.ReadWrite.All, Application.ReadWrite.All) regardless of publisher reputation. Covers the behavioural post-consent class — a legitimately-consented app suddenly expands scope, adds a new client credential, gets directory or RBAC roles assigned to its service principal, or starts behaving anomalously. Counters MITRE ATT&CK `T1098.001 Additional Cloud Credentials` (Detect), `T1098.003 Additional Cloud Roles` (Detect), `T1550.001 Application Access Token` (Detect), `T1136.003 Cloud Account creation via service-principal` (Detect). Pairs with — does not replace — Entra admin-consent workflow + verified-publisher restriction, which is the primary preventive control for T1528 [Microsoft Learn: https://learn.microsoft.com/en-us/security/zero-trust/deploy/identity (Identity ZT Objective IV — restrict user consent to applications); https://learn.microsoft.com/en-us/defender-office-365/detect-and-remediate-illicit-consent-grants].
 
 ## What organisations use this for
 
 For most regulated tenants, the OAuth high-scope grant alert is the **first behavioural signal layered on top of the preventive Entra controls** (admin-consent workflow, verified-publisher restriction, app-consent policies). The preventive controls stop the easy cases; this policy catches what already exists and what changes over time — the long tail of consents granted before the policy went in, the service principals onboarded under legacy delegated admin, and the previously-clean app whose credentials get added to mid-life by an attacker.
 
-Deployments are almost always **post-incident** or **pre-audit**, rarely greenfield. The catalysts after the 2024-2025 cycle have been the named clusters — Storm-0558, MIDNIGHT BLIZZARD service-principal abuse, Storm-2372 mass consent phishing, Storm-1283 — and the supervisory expectations these incidents bequeathed (workload-identity inventory, lifecycle attestation, anomaly detection on application-permission grants). The hardest single decision is not threshold tuning — it is what to do about the 200-800 pre-existing high-scope service principals the discovery scan surfaces on Day 1.
+Deployments are almost always **post-incident** or **pre-audit**, rarely greenfield. The catalysts after the 2024-2025 cycle have been the named clusters — Antique Typhoon (generalised references to the cluster previously tracked as Storm-0558; keep "Storm-0558" only for the specific July 2023 token-forgery incident), Midnight Blizzard service-principal abuse, Storm-2372 mass consent phishing, Storm-1283 — and the supervisory expectations these incidents bequeathed (workload-identity inventory, lifecycle attestation, anomaly detection on application-permission grants) [Microsoft Learn: https://learn.microsoft.com/en-us/unified-secops/microsoft-threat-actor-naming]. The hardest single decision is not threshold tuning — it is what to do about the 200-800 pre-existing high-scope service principals the discovery scan surfaces on Day 1.
 
 ### Use case 1 — Tier-1 ASEAN universal bank, post-Storm-2372 service-principal sprawl response
 
@@ -52,10 +52,10 @@ Typical 10-week rollout for a tier-2 BFSI tenant enabling App Governance for the
 |---|---|---|
 | W1 | License App Governance add-on; enable in tenant; document the SKU / cost in the security budget paper. Decide alert routing (SOC vs Identity team vs IRM analyst) | Add-on live; alert destination signed off |
 | W2 | Pull baseline inventory of all existing OAuth apps via Graph API (`/servicePrincipals`, `/oauth2PermissionGrants`, `/appRoleAssignments`); flag high-scope set. Identify owner per app (HR / business / IT) — most painful step | Baseline inventory CSV; owner-attribution gap log |
-| W3-W4 | Enable Predictive Risk policy in **notify-only mode**; enable OAuth threshold policy with starting values (new high-scope grant alert ON; credential-addition alert ON; geographic-anomaly alert ON). No auto-revoke | Policy live in alert mode; W1 alert volume baseline |
+| W3-W4 | Enable App Governance behavioural-anomaly detection (dynamic detection model, June 2025) in **notify-only mode**; enable OAuth threshold policy with starting values (new high-scope grant alert ON; credential-addition alert ON; geographic-anomaly alert ON). No auto-revoke | Policy live in alert mode; W1 alert volume baseline |
 | W5 | Triage W3-W4 alert backlog; classify TP / FP / out-of-scope. Build per-app suppression list for legitimate burst-usage apps (DR test SPs, content-migration SPs) | First-tuning-pass FP-cause catalogue |
 | W6-W7 | Phased existing-app remediation — for each high-scope app: contact owner, decide retain / ban / reduce-scope / replace. Document attestation. Banning is tenant-wide and **immediate** — query `CloudAppEvents` for current user-count first | Per-app disposition log; reduced high-scope inventory |
-| W8 | Refine Predictive Risk + threshold values; add Power Platform Admin Center DLP companion policy (App Governance under-surfaces Power Platform SPs) | FP rate <15% target |
+| W8 | Refine behavioural-anomaly detection + threshold values; add Power Platform Admin Center DLP companion policy (App Governance under-surfaces Power Platform SPs) [Microsoft Learn: https://learn.microsoft.com/en-us/power-platform/admin/wp-data-loss-prevention] | FP rate <15% target |
 | W9 | Document the SOC triage runbook for OAuth alerts; document escalation chain (Identity admin → SOC L2 → IR if confirmed-bad); define quarterly attestation cadence | Runbook signed off |
 | W10 | Selectively enable auto-revoke for the highest-confidence signal classes ONLY (e.g. malicious-consent verdict + Microsoft-confirmed pattern). Most alerts stay notify-only | Production-ready; auto-revoke scope documented |
 | W11+ | Steady-state — quarterly attestation cycle; monthly FP-tuning; annual full inventory refresh | Quarterly metric on TP rate + attestation completeness |
@@ -80,7 +80,7 @@ The W2 inventory and owner-attribution is the work. Without it, Week 6 is imposs
 
 | Vendor | Console path | Key configuration values | Deployment-mode caveat | Known trap |
 |---|---|---|---|---|
-| MDA | Defender portal → Cloud apps → App governance → Predictive risk policies + OAuth threshold policies. (Re-verify 2026 portal path; App Governance may be a separate left-nav.) Plus Entra portal → Identity → Applications → Enterprise applications → Consent and permissions for the preventive layer | Enable Predictive Risk in notify-only mode for 4 weeks; tune; enable auto-revoke only on highest-confidence signal classes. OAuth threshold = count of grants per app per window + scope-expansion + geographic anomalies + credential-addition events on existing SPs. Recommended starting thresholds (illustrative — derive from W2 baseline): scope-expansion any high-scope = alert; new-credential-on-existing-SP = alert; geo-anomaly = alert if SP has no historical pattern from that region | App Governance is a paid add-on (verify SKU pricing per current `app-governance-licensing` doc); Predictive Risk shipped 2025 H2; behavioural class is post-consent. Banning via App Governance is tenant-wide and immediate; CAE-aware apps revoke faster. Discovery has a tenant-app-count ceiling — verify against current docs | Predictive Risk FP on legitimate burst usage (DR rehearsals, content-migration runs) — per-app suppression workflow required before auto-revoke. **First-time abuse of a never-before-anomalous app — model has nothing to compare against.** **Power Platform service-principal consents under-surfaced in App Governance — Power Platform Admin Center DLP required as companion.** Personal-account OAuth (user signs into a third-party app with personal MSA / Gmail) — Entra never sees it; no coverage. Service-principal-secret rotation by legitimate ISVs produces credential-addition alerts indistinguishable from T1098.001 without operator context |
+| MDA | Microsoft Defender Portal → Cloud Apps → App governance → policies (behavioural-anomaly detection + OAuth threshold). `[VERIFY: Dec 2025 unified-RBAC portal-path update per Microsoft Defender Portal release notes]`. Plus Entra portal → Identity → Applications → Enterprise applications → Consent and permissions for the preventive layer [Microsoft Learn: https://learn.microsoft.com/en-us/security/zero-trust/deploy/identity] | Enable App Governance behavioural-anomaly detection (dynamic detection model, June 2025) in notify-only mode for 4 weeks; tune; enable auto-revoke only on highest-confidence signal classes. OAuth threshold = count of grants per app per window + scope-expansion + geographic anomalies + credential-addition events on existing SPs. Recommended starting thresholds (illustrative — derive from W2 baseline): scope-expansion any high-scope = alert; new-credential-on-existing-SP = alert; geo-anomaly = alert if SP has no historical pattern from that region | App Governance is a paid add-on (verify SKU pricing per current `app-governance-licensing` doc on Microsoft Learn); the behavioural-anomaly detection model transitioned to a dynamic-threat-detection model in June 2025 [Microsoft Learn: https://learn.microsoft.com/en-us/defender-cloud-apps/anomaly-detection-policy — Important notice]. **Practitioner inference:** the "Predictive Risk" feature name used in earlier playbook drafts is not present in current Microsoft Learn; treat as practitioner shorthand for the App Governance behavioural-anomaly detection layer. Behavioural class is post-consent. Banning via App Governance is tenant-wide and immediate; CAE-aware apps revoke faster. Discovery has a tenant-app-count ceiling — verify against current docs | Behavioural-anomaly FP on legitimate burst usage (DR rehearsals, content-migration runs) — per-app suppression workflow required before auto-revoke. **First-time abuse of a never-before-anomalous app — model has nothing to compare against.** **Power Platform service-principal consents under-surfaced in App Governance — Power Platform Admin Center DLP required as companion** [Microsoft Learn: https://learn.microsoft.com/en-us/power-platform/admin/wp-data-loss-prevention]. Personal-account OAuth (user signs into a third-party app with personal MSA / Gmail) — Entra never sees it; no coverage. Service-principal-secret rotation by legitimate ISVs produces credential-addition alerts indistinguishable from T1098.001 without operator context |
 | Netskope | `[unverified]` — Netskope OAuth governance with anomaly | | | |
 | Palo Alto Prisma Access | `[unverified]` — SaaS Security OAuth threshold | | | |
 | Skyhigh | `[unverified]` — Skyhigh OAuth anomaly | | | |
@@ -94,7 +94,8 @@ Anonymised configuration values for a tier-2 ASEAN BFSI tenant after the 10-week
 policy:
   name: "OAuth high-scope grant + behavioural alert — tenant-wide"
   type: AppGovernancePolicy
-  predictive_risk:
+  behavioural_anomaly_detection:    # App Governance dynamic detection model (June 2025);
+                                    # earlier playbook drafts referred to this as "Predictive Risk"
     enabled: true
     sensitivity: Medium              # Low produces too few signals; High overwhelms
     action: Alert                    # notify-only; auto-revoke OFF at this baseline
@@ -148,7 +149,7 @@ policy:
     ppac_dlp_required: true          # MDA-only undercovers Power Platform SPs
 ```
 
-The `sensitivity: Medium` + `confidence_floor_for_auto_revoke: 95` combination is the typical post-tuning baseline for regulated tenants. Lower sensitivity = misses behavioural drift; higher = unmanageable noise on legitimate ISV activity. The `exclude_known_isv_rotation` list must be **per-app-id with named owner and expiry**, never publisher-wide — Microsoft's verified-publisher list is large, and a compromised verified-publisher app is the MIDNIGHT BLIZZARD scenario.
+The `sensitivity: Medium` + `confidence_floor_for_auto_revoke: 95` combination is the typical post-tuning baseline for regulated tenants. Lower sensitivity = misses behavioural drift; higher = unmanageable noise on legitimate ISV activity. The `exclude_known_isv_rotation` list must be **per-app-id with named owner and expiry**, never publisher-wide — Microsoft's verified-publisher list is large, and the Midnight Blizzard intrusion demonstrates the class of risk where the access path traverses a legitimate-looking app surface. **Practitioner inference:** Microsoft's published Midnight Blizzard post-mortem frames the path primarily as a legacy-tenant residual grant rather than a verified-publisher-abuse pattern; the verified-publisher-as-trust-anchor anti-pattern stands either way [Microsoft Learn: https://learn.microsoft.com/en-us/unified-secops/microsoft-threat-actor-naming].
 
 ## Variants
 
@@ -162,14 +163,22 @@ The `sensitivity: Medium` + `confidence_floor_for_auto_revoke: 95` combination i
 
 ### Maturity-based
 
-- **Immature:** Predictive Risk enabled but no W2 baseline inventory; alerts firing into a SOC queue that doesn't know what to do with them; no owner-attribution; alerts ignored by month 3; no companion Power Platform DLP; auto-revoke either disabled (no remediation) or enabled tenant-wide on first turn-on (broken production). Common at 6 months post-deployment for under-resourced programmes
+- **Immature:** App Governance behavioural-anomaly detection enabled but no W2 baseline inventory; alerts firing into a SOC queue that doesn't know what to do with them; no owner-attribution; alerts ignored by month 3; no companion Power Platform DLP; auto-revoke either disabled (no remediation) or enabled tenant-wide on first turn-on (broken production). Common at 6 months post-deployment for under-resourced programmes
 - **Mature:** baseline inventory completed; per-app owner attribution documented; alert routing into Identity team with SOC ticketing for high-severity; quarterly attestation cycle running; Power Platform DLP companion policy in place; FP rate <15%; auto-revoke scoped to highest-confidence signal classes only; documented SOC triage runbook with named escalation chain
 - **Advanced:** App Governance correlated with Entra ID Protection workload-identity risk signals; integration with SDLC for internal-app-registration governance (app-registration approvals routed via ticketing); per-SP risk-tier scoring driving differentiated attestation cadence (Tier-1 monthly, Tier-2 quarterly, Tier-3 annual); workload-identity inventory feeds the vendor-risk programme as a primary data source; per-ISV rotation calendars maintained to suppress legitimate-credential-rotation FPs proactively
 
 ## Control mappings
 
-- BNM RMiT clause(s): [BNM RMiT IAM + third-party risk + technology risk management](../../06-compliance/malaysia/bnm-rmit.md) `[VERIFY against current edition — third-party arrangements + access management]`
-- MAS TRM: workload-identity governance under access management + third-party risk `[VERIFY]`
+- **CIS Microsoft 365 Foundations Benchmark v5.0.0 (30 April 2025):**
+  - CIS 5.1.5.1 (L2) — restrict user consent for applications (preventive companion)
+  - CIS 5.1.5.2 (L1) — admin-consent workflow enabled (preventive companion)
+  - CIS 5.1.2.2 (L2) — review of third-party integrated applications
+  - CIS 9.1.10 (L1) — restrict access to APIs by Service Principals (direct map; Power Platform SP coverage gap)
+  - CIS 9.1.11 (L1) — Power Platform service-principal governance
+  - CIS 2.4.3 (L2) — Defender for Cloud Apps deployed (umbrella control for the library)
+- **Microsoft Secure Score** — Identity group + Apps group improvement actions ("Allow user consent for verified publisher apps only", "Use admin consent workflow", "Review applications that have been consented in your tenant") [Microsoft Learn: https://learn.microsoft.com/en-us/defender-xdr/microsoft-secure-score; https://learn.microsoft.com/en-us/defender-xdr/microsoft-secure-score-improvement-actions]
+- BNM RMiT clause(s): [BNM RMiT IAM + third-party risk + technology risk management](../../06-compliance/malaysia/bnm-rmit.md) `[VERIFY against current edition — third-party arrangements + access management]` (illustrative; not regulatory advice)
+- MAS TRM: workload-identity governance under access management + third-party risk `[VERIFY]` (illustrative; not regulatory advice)
 - ISO 27017 control(s): [CLD.9.x access control, CLD.12.4.5 monitoring](../../06-compliance/iso-27017.md) `[VERIFY]`
 - ISO 27001:2022: A.5.15 (access control), A.5.16 (identity management), A.5.17 (authentication information), A.5.19 (information security in supplier relationships), A.8.2 (privileged access rights) `[VERIFY]`
 - NIST CSF 2.0 subcategory(ies): `PR.AA-05` (access permissions managed), `DE.CM-06` (external service provider activity), `DE.AE-02` (event data analysed), `ID.AM-04` (external information systems catalogued) `[VERIFY]`
@@ -186,7 +195,7 @@ The `sensitivity: Medium` + `confidence_floor_for_auto_revoke: 95` combination i
 
 ## Real-world FP experience
 
-Typical FP-rate trajectory in a tier-2 BFSI tenant new to App Governance:
+Typical FP-rate trajectory in a tier-2 BFSI tenant new to App Governance. **Practitioner-observed ranges; not from Microsoft documentation. Validate against tenant baseline.**
 
 | Week | Typical FP rate | Dominant cause |
 |---|---|---|
@@ -223,12 +232,12 @@ Typical staffing: 0.3 FTE Identity admin during the 10-week ramp (heavy on the W
 - Document workload-identity governance under PDPA / GDPR processor / sub-processor treatment — each high-scope ISV is a data processor under Art. 28 GDPR / equivalent
 - The matching-content / event payload in App Governance can carry user identifiers + app-grant metadata — workforce data under PDPA / GDPR Art. 88 `[VERIFY]`; document access-control on Defender / Sentinel ingestion path
 - DPIA scope: high-scope workload-identity inventory + retention of grant-event records + correlation with HR data (for app-owner attribution) typically a DPIA trigger
-- Cross-border: App Governance event records live in the tenant's primary-data region (verify against current Microsoft Cloud regions doc); Japan East addition in 2025 H2 materially helps MY / SG / HK tenants
+- Cross-border: App Governance event records live in the tenant's primary-data region [Microsoft Learn: https://learn.microsoft.com/en-us/microsoft-365/enterprise/o365-data-locations]; Japan East addition `[VERIFY against current Microsoft Cloud regions page]` materially helps MY / SG / HK tenants
 
 ## Integration with broader programmes
 
 - **Annual / external audit:** workload-identity inventory + attestation log + named-incident-investigation evidence feed ISO 27001 surveillance + SOC 2 + PCI DSS Req. 7 / Req. 12.8 evidence pulls. Quarterly inventory snapshot; annual attestation as primary audit artefact
-- **BNM RMiT supervisory-engagement cycle:** workload-identity governance is a recurring supervisory-question theme post-Storm-0558 / Storm-2372; the inventory + attestation cadence + the named-incident response provide the response posture `[VERIFY]`
+- **BNM RMiT supervisory-engagement cycle:** workload-identity governance is a recurring supervisory-question theme post-Antique Typhoon (formerly Storm-0558, generalised) / Storm-2372; the inventory + attestation cadence + the named-incident response provide the response posture `[VERIFY]` (illustrative; not regulatory advice)
 - **Vendor-risk programme:** every high-scope external ISV is a sub-processor (or processor) — workload-identity inventory becomes a primary input to the vendor catalogue, SOC 2 / ISO 27001 attestation pull, DPA review
 - **Incident response runbook:** App Governance credential-addition alert + scope-expansion alert feed the suspected-account-compromise playbook (correlate with Entra sign-in risk, Defender XDR identity signal); Microsoft-confirmed-malicious-consent verdict feeds the OAuth-abuse-response runbook directly
 - **Board / executive reporting:** quarterly metrics — total high-scope workload identities, % attested in cycle, named-incident count, attestation-overdue count; trend matters more than absolute number
@@ -241,22 +250,22 @@ Typical staffing: 0.3 FTE Identity admin during the 10-week ramp (heavy on the W
 2. **"Skip the W2 baseline inventory"** — every alert lands in a void; no owner to call; no way to classify TP / FP / out-of-scope. Programme dies of operational gravity
 3. **"Ban the typosquat without checking user-count first"** — banning is tenant-wide and immediate (CAE-aware apps revoke faster); legitimate workflows break overnight; trust crisis with business teams. Query `CloudAppEvents` for usage before any ban
 4. **"Treat App Governance as covering Power Platform"** — Power Platform SP consents are under-surfaced; the dominant exfil path in Power-Platform-heavy tenants is through citizen-developer Power Automate flows that App Governance only partly sees. PPAC DLP is mandatory companion
-5. **"Exclude all admins from the grant-alert scope to reduce noise"** — admins are the **most-likely-targeted** consent path (MIDNIGHT BLIZZARD, Storm-2372 admin-consent phishing); excluding them inverts the threat model. Tolerate the noise; do not blanket-exclude
-6. **"Blanket-exclude verified publishers"** — verified-publisher status is a useful signal, not an authoritative trust statement. MIDNIGHT BLIZZARD abused legitimate verified-publisher apps via credential-addition. Exclude per-app-id with named owner + expiry, never publisher-wide
+5. **"Exclude all admins from the grant-alert scope to reduce noise"** — admins are the **most-likely-targeted** consent path (Midnight Blizzard, Storm-2372 admin-consent phishing); excluding them inverts the threat model. Tolerate the noise; do not blanket-exclude
+6. **"Blanket-exclude verified publishers"** — verified-publisher status is a useful signal, not an authoritative trust statement. The Midnight Blizzard intrusion class exposes the risk where legitimate-looking app surfaces accumulate credentials or roles over time (**practitioner inference:** the precise path varies by Microsoft post-mortem; treat verified-publisher as one signal among many, not as trust). Exclude per-app-id with named owner + expiry, never publisher-wide
 7. **"Notify the user when alerted"** — for compromised-account scenarios, tips off the actor; investigation gets harder. Notify the app owner (W2 inventory) and the Identity team, not the consenting user
-8. **"Rely on Predictive Risk alone"** — Predictive Risk has nothing to compare against for first-time-anomalous apps; threshold policies (credential-addition, scope-expansion, geo-anomaly) are the higher-fidelity signal classes for the dominant threat patterns
+8. **"Rely on behavioural-anomaly detection alone"** — the dynamic detection model has nothing to compare against for first-time-anomalous apps; threshold policies (credential-addition, scope-expansion, geo-anomaly) are the higher-fidelity signal classes for the dominant threat patterns
 9. **"Skip owner-attribution because it's too hard"** — without an owner, no high-scope app can pass attestation; the unowned-app population grows; auditor finding follows. The owner-attribution work is what makes the rest of the programme possible
 10. **"One-time inventory, no attestation cycle"** — the SP estate drifts; new high-scope apps accumulate without operator awareness; six months later the inventory is fiction. Quarterly attestation is the minimum survivable cadence
 
 ## Coverage gaps
 
-- First-time abuse of a previously-clean app — Predictive Risk model has no baseline to anomaly-detect against
+- First-time abuse of a previously-clean app — the App Governance behavioural-anomaly model has no baseline to anomaly-detect against
 - App Governance covers some application-permission anomalies for M365 Graph; coverage on non-Graph scopes varies — verify per-scope against current docs
-- **Power Platform service-principals** — under-surfaced; Power Platform Admin Center DLP required as companion (see Use case 2)
+- **Power Platform service-principals** — under-surfaced; Power Platform Admin Center DLP required as companion (see Use case 2) [Microsoft Learn: https://learn.microsoft.com/en-us/power-platform/admin/wp-data-loss-prevention]
 - **Personal-account OAuth** — user signs into a third-party app with personal MSA / Gmail / consumer-tier account; Entra and MDA never see the grant; not in scope of this policy
 - **Workspace / Salesforce coverage** — App Governance is M365-Graph-centric; Workspace OAuth and Salesforce Connected Apps require parallel native-platform controls
-- **OAuth blind spot** — see [OAuth blind spot](../../08-failure-modes/oauth-blind-spot.md); per the playbook framing, the full ~70% of OAuth abuse class is not solved by Predictive Risk alone — the preventive Entra layer (admin-consent workflow + verified-publisher restriction + app-consent policies) does most of the work
-- **Service-principal sign-in risk for workload identities** — Entra Workload Identities P2 covers a different signal class; App Governance event records do not replace Workload Identity Premium telemetry
+- **OAuth blind spot** — see [OAuth blind spot](../../08-failure-modes/oauth-blind-spot.md); per the playbook framing, the full ~70% of OAuth abuse class is not solved by behavioural-anomaly detection alone — the preventive Entra layer (admin-consent workflow + verified-publisher restriction + app-consent policies) does most of the work [Microsoft Learn: https://learn.microsoft.com/en-us/security/zero-trust/deploy/identity Objective IV]
+- **Service-principal sign-in risk for workload identities** — Entra Workload Identities Premium covers a different signal class (sign-in risk, risk-based CA on workload identities); App Governance event records do not replace this telemetry `[VERIFY: Workload Identities Premium licensing-tier per current Entra licensing page on Microsoft Learn]`
 - **Token replay across regions for already-authorised SPs** — geo-anomaly on the SP itself helps, but T1550.001-on-SP-token is hard to detect without correlating SP sign-in telemetry
 
 ## Three-lens sign-off

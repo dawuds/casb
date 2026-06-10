@@ -1,10 +1,12 @@
 # Geo-residency block
 
 > Status: v0.0 — cross-vendor pattern; MDA implementation via location-filter + sensitivity-label filter; other vendors `[unverified]`.
-> Depth: **Tier 2 — deep-dive**.
+> Depth: **Tier 2 — deep-dive (Microsoft-standards QA applied 2026-06-10)**.
 > Required capabilities: [Data-residency / geo-policy enforcement + Inline DLP](../../02-capabilities/capability-matrix.md).
 > Deployment-mode requirement: Hybrid (inline for block; API for residency-aware classification).
-> MDA playbook reference: implicit via Location filter on session/access/activity policies; not a numbered Day 1/30/90 policy in MDA v1.
+> MDA playbook reference: implicit via Location filter on session/access/activity policies; not a numbered Day 1/30/90 policy in MDA v1 (internal numbering; not Microsoft-documented).
+
+> **Practitioner-inference control class.** Geo-residency block has **no direct CIS Microsoft 365 Foundations Benchmark v5.0.0 control** and **no direct Microsoft Secure Score improvement action**. It is a practitioner-assembled composite — Location filter on an MDA session/activity policy + Purview sensitivity-label filter + parallel data-layer enforcement (M365 multi-geo / bucket-region rule / Workspace data-region setting) — deployed to satisfy regulator- or contract-driven residency obligations (BNM RMiT, PDPA MY 2024, GDPR Chapter V, DORA, MAS TRM, in-country processing mandates). Audit-defensibility rests on the obligation citation, not on a Microsoft-baseline mapping. Material on regulatory clauses below is illustrative, not legal or regulatory advice.
 
 ## Purpose
 
@@ -12,7 +14,7 @@ Block upload to (or download from) data regions outside the firm's permitted geo
 
 ## What organisations use this for
 
-Geo-residency block is one of the most misunderstood policies in the CASB catalogue. Practitioners deploy it expecting a single control that "stops data leaving the country"; what they actually deploy is a layered set — a CASB session/activity policy keyed on the *user's location*, plus a data-layer enforcement (Purview label policy / bucket-region rule / Workspace data-region setting) keyed on the *file's residency tag*. The CASB layer alone enforces *user-action-by-location*, not *data-by-region*. Conflating the two is the dominant misconfiguration on first rollout.
+Geo-residency block is one of the most misunderstood policies in the CASB catalogue. Practitioners deploy it expecting a single control that "stops data leaving the country"; what they actually deploy is a layered set — a CASB session/activity policy keyed on the *user's location*, plus a data-layer enforcement (Purview label policy / bucket-region rule / Workspace data-region setting) keyed on the *file's residency tag*. The CASB layer alone enforces *user-action-by-location*, not *data-by-region*. Conflating the two is the dominant misconfiguration on first rollout. (Practitioner observation; not Microsoft-documented.)
 
 The policy is rarely demand-driven by an incident; it is demand-driven by an audit cycle, a regulator inquiry on cross-border data flows, or a customer-contract residency commitment that surfaces during sales due diligence. The deployment scope is typically narrow at first (one BU, one data class, one regulator's residency regime) and broadens as the firm builds a residency-labelling taxonomy.
 
@@ -21,7 +23,7 @@ The policy is rarely demand-driven by an incident; it is demand-driven by an aud
 - **Org type:** large universal bank, ~30k employees, M365 E5, BNM RMiT supervised, retail + corporate + Islamic banking
 - **Trigger:** BNM supervisory inquiry on cross-border data flows following an industry-wide review of Malaysian FIs' use of foreign cloud regions; bank had to demonstrate per-data-class residency posture for customer KYC, AML transaction history, and credit-risk data within 90 days `[VERIFY against the specific BNM circular referenced]`
 - **Scope:** Phase 1: KYC + AML BUs (~4k users); residency-tagged label family (`MY-Resident-KYC`, `MY-Resident-AML`); MDA session policy with country whitelist = MY only on download for files carrying these labels; parallel Purview label-policy preventing labelled files being saved to non-MY OneDrive geo
-- **Outcome:** evidence pack accepted in the supervisor's follow-up; ~600 cross-border access attempts intercepted in the first 90 days, of which ~80% were legitimate travelling staff who needed an exception path, ~15% were misrouted Power BI dataset access, ~5% were genuine policy violations escalated to the data-protection officer. Tenant-region migration to Japan East (added 2025 H2) was a separate workstream needed to close the auditor's residual concern on log-data residency
+- **Outcome:** evidence pack accepted in the supervisor's follow-up; ~600 cross-border access attempts intercepted in the first 90 days, of which ~80% were legitimate travelling staff who needed an exception path, ~15% were misrouted Power BI dataset access, ~5% were genuine policy violations escalated to the data-protection officer. Tenant-region migration to Japan East `[VERIFY against current Microsoft Cloud regions page — Microsoft Learn: https://learn.microsoft.com/en-us/microsoft-365/enterprise/o365-data-locations]` was a separate workstream needed to close the auditor's residual concern on log-data residency
 
 ### Use case 2 — Pan-EU asset manager under GDPR Chapter V
 
@@ -35,18 +37,18 @@ The policy is rarely demand-driven by an incident; it is demand-driven by an aud
 - **Org type:** payments processor operating across MY / SG / HK / TH / ID; in-scope for PCI DSS + BNM RMiT + MAS TRM + HKMA SA-2 + BoT supervisory expectations + OJK PERATURAN 11/2022 on personal data protection in finance `[VERIFY]`
 - **Trigger:** simultaneous regulator queries arising from a peer-firm incident in 2025 that exposed cross-border CHD flows; board-level ask to demonstrate "per-jurisdiction residency for per-jurisdiction CHD"; coupled with Indonesia's sovereign-cloud trajectory
 - **Scope:** residency-aware label taxonomy (`Conf-CHD-MY`, `Conf-CHD-SG`, `Conf-CHD-HK`, `Conf-CHD-TH`, `Conf-CHD-ID`); per-jurisdiction MDA session policy keyed on label + location; Purview label-publish scoping per jurisdiction-aligned user OUs; tenant primary-data region pulled and documented per regulator submission; sovereign-region commitment articulated against the firm's roadmap
-- **Outcome:** per-jurisdiction residency-by-data-class evidence pack accepted by three of five regulators; remaining two requested supplementary in-country tenancy commitments that drove a Microsoft-tenant-region procurement decision separate from the CASB control. Ongoing cost of maintaining the 5-label taxonomy estimated at 0.4 FTE platform admin + 0.2 FTE compliance analyst
+- **Outcome:** per-jurisdiction residency-by-data-class evidence pack accepted by three of five regulators; remaining two requested supplementary in-country tenancy commitments that drove a Microsoft-tenant-region procurement decision separate from the CASB control. Ongoing cost of maintaining the 5-label taxonomy estimated at 0.4 FTE platform admin + 0.2 FTE compliance analyst (practitioner observation; not Microsoft-documented)
 
 ### Use case 4 — Sovereign healthcare programme, in-country processing mandate
 
 - **Org type:** public-sector healthcare data-platform operator (~2k staff + 20k clinician users) under a sovereign in-country processing mandate codified in a national health-data circular; M365 G5-equivalent (public-sector tier)
 - **Trigger:** national audit office review of cloud-hosted health data following a 2024 policy directive requiring "patient data shall be processed and stored in-country except where a documented exemption applies"; the audit office distinguished *storage* (in-country tenant) from *processing* (where the user accessing the data is located)
 - **Scope:** all clinician users; label `Health-PHI-Domestic`; MDA session policy block on access from outside the country, even for read; documented telemedicine-from-abroad exception path through a named clinical-review committee; combined with conditional-access GeoIP block at Entra layer (defence in depth)
-- **Outcome:** audit office accepted the layered control as meeting the directive's processing requirement; produced a quarterly metric "% of PHI access attempts from outside country" that became a reported KPI to the ministry. False-positive rate dominated by clinicians on training fellowships abroad — ~25% of alerts in the first quarter, fell to ~5% after the exemption path was operationalised
+- **Outcome:** audit office accepted the layered control as meeting the directive's processing requirement; produced a quarterly metric "% of PHI access attempts from outside country" that became a reported KPI to the ministry. False-positive rate dominated by clinicians on training fellowships abroad — ~25% of alerts in the first quarter, fell to ~5% after the exemption path was operationalised (practitioner-observed FP trajectory; not from Microsoft documentation)
 
 ## Implementation pattern
 
-Typical 12-week rollout sequence for a tier-2 BFSI tenant adding residency enforcement. This is longer than most CASB policies because the data-layer residency taxonomy is itself a deliverable.
+Typical 12-week rollout sequence for a tier-2 BFSI tenant adding residency enforcement. This is longer than most CASB policies because the data-layer residency taxonomy is itself a deliverable. (Practitioner-observed cadence; not from Microsoft documentation.)
 
 | Week | Activity | Output / gate |
 |---|---|---|
@@ -62,7 +64,7 @@ Typical 12-week rollout sequence for a tier-2 BFSI tenant adding residency enfor
 | W12 | Steady-state handoff; quarterly review cadence documented; first audit-evidence pull tested | Quarterly metric defined; audit-evidence package proven |
 | W13+ | Quarterly tuning + annual residency-obligation refresh | Refreshed residency register annually; FP rate measured monthly |
 
-The single most underestimated step is W7-W8 — the bilateral CAAC trap. Without both the Entra CA redirect and the MDA session policy, a session policy on its own is a silent no-op. Practitioners new to MDA frequently configure only the session policy, see no enforcement in testing, and assume a vendor bug rather than a missing CA policy.
+The single most underestimated step is W7-W8 — the bilateral CAAC trap. Without both the Entra CA redirect and the MDA session policy, a session policy on its own is a silent no-op. Practitioners new to MDA frequently configure only the session policy, see no enforcement in testing, and assume a vendor bug rather than a missing CA policy. (Practitioner observation; the Entra + MDA bilateral requirement is documented per Microsoft Learn: https://learn.microsoft.com/en-us/defender-cloud-apps/proxy-intro-aad — note Edge for Business users get direct in-browser protection without the `*.mcas.ms` reverse-proxy redirect; the reverse-proxy path applies to non-Edge browsers.)
 
 ## Action
 
@@ -81,7 +83,7 @@ The single most underestimated step is W7-W8 — the bilateral CAAC trap. Withou
 
 | Vendor | Console path | Key configuration values | Deployment-mode caveat | Known trap |
 |---|---|---|---|---|
-| MDA | Defender portal → Cloud apps → Policies → Session/Activity policy with Location filter (country-level). Plus Purview sensitivity labels carrying residency metadata | Location filter = country whitelist; File filter = Sensitivity label ∈ {residency-tagged}; Action = Block | Country-level only — no sub-country granularity. M365 multi-geo "supported only for OneDrive" per docs; SharePoint multi-geo events not fully captured | Location filter on session policy fires for the user's *current location*, not the file's *origin region*. To enforce file-region-residency you need Purview Information Protection rules at the data layer in parallel — MDA enforces user-action-by-location, not data-by-region |
+| MDA | Microsoft Defender Portal → Cloud Apps → Policies → Policy management → Session/Activity policy with Location filter (country-level). Plus Purview sensitivity labels carrying residency metadata | Location filter = country whitelist; File filter = Sensitivity label ∈ {residency-tagged}; Action = Block | Country-level only — no sub-country granularity. M365 multi-geo supported only for OneDrive per Microsoft Learn `microsoft-365/enterprise/multi-geo-capabilities-in-onedrive-and-sharepoint-online-in-microsoft-365`; SharePoint multi-geo events not fully captured. Edge for Business users get direct in-browser protection (Microsoft Learn: https://learn.microsoft.com/en-us/defender-cloud-apps/proxy-intro-aad); non-Edge browsers use the `*.mcas.ms` reverse-proxy path | Location filter on session policy fires for the user's *current location*, not the file's *origin region*. To enforce file-region-residency you need Purview Information Protection rules at the data layer in parallel — MDA enforces user-action-by-location, not data-by-region |
 | Netskope | `[unverified]` — Netskope geo-fencing + DLP integration | | | |
 | Palo Alto Prisma Access | `[unverified]` — Prisma Access geo-policy + SaaS Security | | | |
 | Skyhigh | `[unverified]` — Skyhigh multi-mode geo control | | | |
@@ -145,7 +147,7 @@ policy:
       - null_location_event_count
 ```
 
-The `treat_unknown_as: outside_whitelist` setting is the single most important defensive tuning. Default behaviour in some configurations is to permit null-location events as "could not determine" — which is the bypass path attackers and VPN-on-iOS users routinely take.
+The `treat_unknown_as: outside_whitelist` setting is the single most important defensive tuning. Default behaviour in some configurations is to permit null-location events as "could not determine" — which is the bypass path attackers and VPN-on-iOS users routinely take. (Practitioner observation; field-tested across multiple tenants — not Microsoft-documented.)
 
 ## Variants
 
@@ -165,12 +167,20 @@ The `treat_unknown_as: outside_whitelist` setting is the single most important d
 
 ## Control mappings
 
-- BNM RMiT clause(s): [BNM RMiT cloud services + cross-border data transfer](../../06-compliance/malaysia/bnm-rmit.md) `[VERIFY against current edition]`
-- PDPA MY 2024 (Act A1709): cross-border-transfer regime `[VERIFY against gazetted text]`
+> **Practitioner inference:** This policy has **no direct CIS Microsoft 365 Foundations Benchmark v5.0.0 control** and **no direct Microsoft Secure Score improvement action**. The CIS v5.0.0 benchmark (April 2025) and Microsoft Secure Score do not enumerate geographic data-residency as an in-scope control class — they are baseline-hardening frameworks, not data-sovereignty frameworks. The CIS umbrella control CIS 2.4.3 (L2) "Ensure Microsoft Defender for Cloud Apps is enabled and configured" provides the platform-prerequisite mapping only. Audit-defensibility for this policy rests on the obligation citations below, not on a CIS / Secure Score mapping. (Microsoft Learn: https://learn.microsoft.com/en-us/defender-xdr/microsoft-secure-score; https://learn.microsoft.com/en-us/defender-xdr/microsoft-secure-score-improvement-actions.)
+
+- **Microsoft Zero Trust — Data pillar (Objective III):** governance actions for sensitivity-labelled data (apply labels, quarantine, restrict sharing/access) — Microsoft Learn: https://learn.microsoft.com/en-us/security/zero-trust/deploy/data. The geo-residency control fits the Data pillar as a location-conditional enforcement on labelled data
+- **Microsoft Zero Trust — Identity pillar (Objective IV):** complementary Entra CA GeoIP block as defence-in-depth — Microsoft Learn: https://learn.microsoft.com/en-us/security/zero-trust/deploy/identity
+- **CIS Microsoft 365 Foundations Benchmark v5.0.0 (30 April 2025):** CIS 2.4.3 (L2) "Ensure Microsoft Defender for Cloud Apps is enabled and configured" — platform-prerequisite only. No direct residency-specific control in CIS v5.0.0
+- **Microsoft Secure Score:** no direct improvement action for geographic data-residency; the Apps and Data groups in the current four-group structure (Identity / Device / Apps / Data) do not surface residency as a scored item
+- **M365 multi-geo configuration (data-layer parallel enforcement):** Microsoft Learn: https://learn.microsoft.com/en-us/microsoft-365/enterprise/multi-geo-capabilities-in-onedrive-and-sharepoint-online-in-microsoft-365. Note: multi-geo is supported for OneDrive; SharePoint multi-geo events are not fully captured by MDA
+- **Microsoft 365 data locations (tenant primary-data region):** Microsoft Learn: https://learn.microsoft.com/en-us/microsoft-365/enterprise/o365-data-locations `[VERIFY against current Microsoft Cloud regions page on day of attestation — Japan East and India region availability change]`
+- BNM RMiT clause(s): [BNM RMiT cloud services + cross-border data transfer](../../06-compliance/malaysia/bnm-rmit.md) `[VERIFY against current edition]` — illustrative; not regulatory advice
+- PDPA MY 2024 (Act A1709): cross-border-transfer regime `[VERIFY against gazetted text]` — illustrative; not legal advice
 - ISO 27017 control(s): [CLD.6.3.1 shared responsibility, CLD.12.4.5 monitoring](../../06-compliance/iso-27017.md) `[VERIFY]`
 - ISO 27018 A.10, A.11.1: use limitation, sub-processor disclosure relevant
-- GDPR Chapter V (international transfers) for EU-tagged data; Article 46 SCC programme cross-reference; EDPB supplementary measures guidance `[VERIFY current]`
-- DORA Article 28 (third-party risk) + ICT third-party register for residency-impacting sub-processors `[VERIFY]`
+- GDPR Chapter V (international transfers) for EU-tagged data; Article 46 SCC programme cross-reference; EDPB supplementary measures guidance `[VERIFY current]` — illustrative; not legal advice
+- DORA Article 28 (third-party risk) + ICT third-party register for residency-impacting sub-processors `[VERIFY]` — illustrative; not legal advice
 - NIST CSF 2.0 subcategory(ies): `PR.DS-01` (data-at-rest), `PR.DS-02` (data-in-transit), `GV.SC-04` (supplier residency in supply-chain controls) `[VERIFY]`
 
 ## False-positive risk
@@ -183,6 +193,8 @@ The `treat_unknown_as: outside_whitelist` setting is the single most important d
 
 ## Real-world FP experience
 
+> **Practitioner-observed ranges; not from Microsoft documentation. Validate against tenant baseline.**
+
 Typical FP-rate trajectory in a tier-2 BFSI tenant new to residency enforcement:
 
 | Week | Typical FP rate | Dominant cause |
@@ -193,7 +205,7 @@ Typical FP-rate trajectory in a tier-2 BFSI tenant new to residency enforcement:
 | W12 (block live) | 6-12% | Mature exception workflow; integrated with HR travel-notification; quarterly tuning cycle running |
 | Steady-state | 3-8% | Combined with Entra CA GeoIP for defence in depth catches the residual; remaining FPs are legitimate travel + cloud-provider IP geo errors |
 
-Named FP scenarios encountered repeatedly across deployments:
+Named FP scenarios encountered repeatedly across deployments (practitioner observation):
 
 | Scenario | Mitigation |
 |---|---|
@@ -201,7 +213,7 @@ Named FP scenarios encountered repeatedly across deployments:
 | VPN egress in a different country to the user (corporate VPN concentrator in SG for MY user) | Document corporate VPN egress IPs as a known-source enrichment; ideally relocate VPN egress to match residency expectation |
 | Null-location event from mobile-app session, residential proxy, or browser-locale-suppressed connection | `is_set: true` filter + `treat_unknown_as: outside_whitelist` policy stance — the more defensive option |
 | Power BI / Dynamics service-account access from non-whitelist Azure region | Service-account exclusion list; Power BI tenant-region enforcement as a separate control |
-| Cross-tenant B2B guest access where guest's home tenant is in a different region | Per-tenant Cross-Tenant Access Settings carrying residency obligations into the partner relationship; do not rely solely on the CASB layer |
+| Cross-tenant B2B guest access where guest's home tenant is in a different region | Per-tenant cross-tenant access settings carrying residency obligations into the partner relationship; do not rely solely on the CASB layer |
 | Cloud-provider IPs mis-attributed by GeoIP (Azure / AWS / GCP edge nodes registered in a different country than where service runs) | Maintain a known-cloud-provider IP-range enrichment; periodically refresh against the providers' published IP-range datasets |
 | Telemedicine / consultant-from-abroad scenarios in healthcare and consulting | Named clinical-review or matter-management exception process; time-bounded approvals |
 | Legitimate cross-border collaboration with EEA adequacy-decision countries / FATF-aligned jurisdictions | Whitelist expansion to include the documented adequacy-decision list; reviewed annually |
@@ -212,25 +224,25 @@ Named FP scenarios encountered repeatedly across deployments:
 - **Triage load:** medium — region anomalies often correlate with legitimate travel
 - **End-user friction:** medium for roaming users; high for cross-border collaboration
 
-Typical staffing: 0.3-0.5 FTE platform admin during the 12-week ramp (label-taxonomy work is the heavy step); 0.2 FTE steady-state. Compliance analyst commits ~0.15 FTE for the cross-border-flow evidence pack and quarterly audit-evidence pull. Help-desk Tier 1 absorbs the bulk of exception-request volume; expect 2-5x the steady-state ticket rate during business-travel-heavy quarters.
+Typical staffing: 0.3-0.5 FTE platform admin during the 12-week ramp (label-taxonomy work is the heavy step); 0.2 FTE steady-state. Compliance analyst commits ~0.15 FTE for the cross-border-flow evidence pack and quarterly audit-evidence pull. Help-desk Tier 1 absorbs the bulk of exception-request volume; expect 2-5x the steady-state ticket rate during business-travel-heavy quarters. (Practitioner-observed staffing; not from Microsoft documentation.)
 
 ## Privacy / data-protection considerations
 
 - Location enrichment uses IP + geo-lookup — workforce-location data; document under PDPA / GDPR Art. 88 workforce-monitoring posture
 - Country-level location accuracy is Microsoft's claim; VPN endpoints, cloud-provider IPs, residential proxies all routinely produce wrong country
-- The matching-content snippet on a blocked event may carry residency-tagged content — itself subject to the residency obligation that triggered the block. Where does the CASB store that snippet? If the tenant primary-data region is outside the obligation's geography, the snippet itself violates the policy. This is the classic recursive-residency trap; check tenant region against the strictest in-scope obligation
-- DPIA / TIA trigger: any residency-enforcement programme touching personal data warrants a DPIA refresh; for EU personal data with Chapter V exposure, a TIA refresh is required to document the technical and organisational measures (the CASB control is one such measure)
+- The matching-content snippet on a blocked event may carry residency-tagged content — itself subject to the residency obligation that triggered the block. Where does the CASB store that snippet? If the tenant primary-data region is outside the obligation's geography, the snippet itself violates the policy. This is the classic recursive-residency trap; check tenant region against the strictest in-scope obligation (Microsoft Learn: https://learn.microsoft.com/en-us/microsoft-365/enterprise/o365-data-locations)
+- DPIA / TIA trigger: any residency-enforcement programme touching personal data warrants a DPIA refresh; for EU personal data with Chapter V exposure, a TIA refresh is required to document the technical and organisational measures (the CASB control is one such measure) — illustrative; not legal advice
 - Workforce-monitoring notice: AUP and employee handbook must explicitly cover location-based access controls and the use of GeoIP enrichment
 
 ## Integration with broader programmes
 
-- **Audit cycle (regulator-led residency):** quarterly metric — blocks-per-week-by-country + exceptions-granted-by-BU + null-location-event count — feeds the cross-border-flow evidence pack. For BNM RMiT supervisees, this becomes part of the annual self-assessment; for MAS TRM, the cross-border-flow disclosure schedule
+- **Audit cycle (regulator-led residency):** quarterly metric — blocks-per-week-by-country + exceptions-granted-by-BU + null-location-event count — feeds the cross-border-flow evidence pack. For BNM RMiT supervisees, this becomes part of the annual self-assessment; for MAS TRM, the cross-border-flow disclosure schedule (illustrative scope; not regulatory advice)
 - **DPIA / TIA refresh cycle:** the residency-block control is named as a technical measure in the TIA for any sub-processor flow involving EU personal data; refreshed annually or on material change to sub-processor relationships
 - **Vendor / sub-processor risk register:** any sub-processor with residency-affecting access surfaces in the register; residency-enforcement control documented as one mitigation of the cross-border-transfer risk
-- **Board / executive reporting:** quarterly metric — "% of cross-border access attempts blocked" trend; named-incident summary for policy violations escalated to DPO. The trend matters more than the absolute number — a sudden spike usually signals a misrouted application flow rather than a hostile actor
+- **Board / executive reporting:** quarterly metric — "% of cross-border access attempts blocked" trend; named-incident summary for policy violations escalated to DPO. The trend matters more than the absolute number — a sudden spike usually signals a misrouted application flow rather than a hostile actor (practitioner observation)
 - **Incident response runbook:** a blocked event correlated with anomalous sign-in risk feeds an Identity-and-Access IR runbook (potential session hijack from outside the residency geography); a blocked event from a legitimate user pattern feeds a Data-Protection IR runbook (process review, not user discipline)
 - **Contracts and customer obligations:** the residency-block control is the technical evidence behind customer-DPA residency commitments; should be named in customer-facing assurance reports (SOC 2 / customer security questionnaire responses)
-- **Tenant region procurement:** the CASB control surfaces tenant-region inadequacy. For Malaysian / Singapore / Hong Kong FIs, the Japan East primary-data region (added 2025 H2) materially improves the cross-border story; for India, the H2 2026 roadmap matters. Verify the current state on the Microsoft Cloud regions page on the day of attestation
+- **Tenant region procurement:** the CASB control surfaces tenant-region inadequacy. For Malaysian / Singapore / Hong Kong FIs, the Japan East primary-data region `[VERIFY against current Microsoft Cloud regions page — Microsoft Learn: https://learn.microsoft.com/en-us/microsoft-365/enterprise/o365-data-locations]` materially improves the cross-border story; for India, roadmap availability matters. Verify the current state on the Microsoft 365 data locations page on the day of attestation
 - **Business-continuity / DR:** residency-block must accommodate DR geography — if the DR site is in a different country, the policy needs a documented DR-window exception or the DR site must be in-residency
 
 ## Anti-patterns specific to this policy
@@ -238,7 +250,7 @@ Typical staffing: 0.3-0.5 FTE platform admin during the 12-week ramp (label-taxo
 1. **"The CASB location filter enforces data residency"** — it does not. It enforces user-action-by-location. Without a parallel data-layer enforcement (Purview label policy, bucket-region rule, Workspace data-region setting) you have not enforced data residency; you have enforced where the user can be when they touch the data
 2. **"Country whitelist without `is set` clause"** — null-location events bypass the filter silently. The first attacker to use a VPN with location-spoof headers walks through; the first mobile-app session with location-suppression walks through. Always pair `country in {whitelist}` with `location is set = true`
 3. **"Block from day 1 without a documented exception path"** — legitimate travelling staff are blocked indiscriminately; help-desk overwhelmed; executive-travel scenarios escalate to the CIO; policy rolled back within 2 weeks. Always start in monitor-only mode with the exception workflow live before flipping to block
-4. **"Session policy without the corresponding Entra Conditional Access redirect"** — the bilateral CAAC trap. The session policy compiles, looks live in the console, generates no events. Operator assumes the policy is in audit mode or that "nothing matched", when in fact the session was never redirected through the CASB proxy
+4. **"Session policy without the corresponding Entra Conditional Access redirect"** — the bilateral CAAC trap. The session policy compiles, looks live in the console, generates no events. Operator assumes the policy is in audit mode or that "nothing matched", when in fact the session was never redirected through the CASB proxy (Microsoft Learn: https://learn.microsoft.com/en-us/defender-cloud-apps/proxy-intro-aad)
 5. **"Treating customer-contractual residency as separate from regulator residency"** — leads to two parallel label taxonomies, two parallel CAAC policies, and a label-precedence conflict where a file is both `Customer-X-EU-Only` and `MY-Resident-KYC`. Unify the taxonomy or document the precedence rule explicitly
 6. **"Ignoring the recursive-residency trap on the CASB itself"** — your CASB stores activity logs and policy-match snippets. If the tenant primary-data region is outside the obligation's geography, the CASB itself is the residency violation you deployed it to prevent. Verify tenant region before deployment, not after the auditor finds it
 7. **"Country-level granularity is good enough"** — for ASEAN scenarios where KL ↔ SG ↔ JB is the legitimate-travel pattern, country-level is too coarse; for federal jurisdictions where state-level residency obligations exist (e.g. some US state laws, some EU member-state overlays), country-level under-enforces. Document the granularity limitation against the obligation
@@ -248,13 +260,13 @@ Typical staffing: 0.3-0.5 FTE platform admin during the 12-week ramp (label-taxo
 
 ## Coverage gaps
 
-- Tenant primary-data region (where the CASB itself stores activity logs / DLP snippets) is separate from this policy's geo-block — the CASB log data residency is determined at tenant provisioning. For MDA: EU / US / UK / AU / Japan East (verify Trust Center on day of attestation)
+- Tenant primary-data region (where the CASB itself stores activity logs / DLP snippets) is separate from this policy's geo-block — the CASB log data residency is determined at tenant provisioning. For MDA: EU / US / UK / AU / Japan East `[VERIFY against current Microsoft Cloud regions page — Microsoft Learn: https://learn.microsoft.com/en-us/microsoft-365/enterprise/o365-data-locations]` on day of attestation
 - API-mode delays (Power BI / Dynamics 24-72hr) — region-block is post-event for non-inline traffic
 - File-region-residency requires data-layer enforcement (Purview / GCP / AWS bucket-region rules) — MDA alone is user-action-by-location
 - [Encrypted-upload bypass](../../08-failure-modes/encrypted-upload-bypass.md) — encrypted-by-user content cannot be tagged by content scan
 - Sub-country granularity not available at the CASB layer — state / province / federal-territory residency obligations not directly enforceable
 - Mobile-app and certificate-pinned native-app sessions bypass CAAC; residency enforcement on those flows requires Intune App Protection Policy or equivalent MAM control
-- Cross-tenant B2B guest access where the guest's home tenant resides in a different geography — Cross-Tenant Access Settings + label-aware sharing controls needed; this policy alone insufficient
+- Cross-tenant B2B guest access where the guest's home tenant resides in a different geography — cross-tenant access settings + label-aware sharing controls needed; this policy alone insufficient
 - GeoIP accuracy on cloud-provider egress IPs is poor; maintain a refreshed enrichment list
 
 ## Three-lens sign-off

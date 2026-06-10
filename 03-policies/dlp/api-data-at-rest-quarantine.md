@@ -1,14 +1,16 @@
 # API mode data-at-rest quarantine
 
 > Status: v0.0 — MDA column from playbook v1; other vendors `[unverified]`.
-> Depth: **Tier 2 — deep-dive**.
+> Depth: **Tier 2 — deep-dive (Microsoft-standards QA applied 2026-06-10)**.
 > Required capabilities: [API-mode DLP for sanctioned SaaS](../../02-capabilities/capability-matrix.md).
 > Deployment-mode requirement: API connector. No CAAC required.
-> MDA playbook reference: [Policy 2](../../04-vendors/microsoft-defender-for-cloud-apps.md) (Auto-label PCI as a related pattern; this policy is the quarantine variant).
+> MDA playbook reference: [Policy 2](../../04-vendors/microsoft-defender-for-cloud-apps.md) (Auto-label PCI as a related pattern; this policy is the quarantine variant). Internal numbering; not Microsoft documentation.
 
 ## Purpose
 
 Scan files already at rest in sanctioned SaaS storage, detect regulated content via DLP signatures, and quarantine matched files to an admin-owned location pending owner review. Catches what slipped past the inline upload gate, what arrived via sync clients, and what was uploaded before policies were enforcing. Counters MITRE ATT&CK `T1530 Data from Cloud Storage Object` Detect leg + `T1213.002 SharePoint` Detect leg. The backfill control that pairs with inline DLP prevention (see [`inline-upload-block-regulated-data.md`](inline-upload-block-regulated-data.md)).
+
+Microsoft architectural anchor: Zero Trust **Data pillar — Objective III** (apply data-classification + DLP + protection actions: remove permissions, quarantine, apply sensitivity labels). [Microsoft Learn: https://learn.microsoft.com/en-us/security/zero-trust/deploy/data]
 
 ## What organisations use this for
 
@@ -64,9 +66,11 @@ The W5-W6 pilot is the FP-tuning critical path. Tenant-wide rollout before per-S
 
 ## Action
 
-- Primary: **quarantine** (move to admin-owned location) with owner notification
-- Alternative: **alert + label-apply** without quarantine for less-sensitive classes
-- Two-stage option: **label + alert** Stage 1; **quarantine** Stage 2 (14 days later) on no-response
+- Primary: **Put file in admin quarantine** (move to admin-owned location) with owner notification
+- Alternative: **alert + Apply Microsoft Purview sensitivity label** without quarantine for less-sensitive classes
+- Two-stage option: **label + alert** Stage 1; **Put file in admin quarantine** Stage 2 (14 days later) on no-response
+
+Governance-action names mirror current Microsoft documented action names. [Microsoft Learn: https://learn.microsoft.com/en-us/defender-cloud-apps/data-protection-policies]
 
 ## Scope
 
@@ -80,13 +84,15 @@ The W5-W6 pilot is the FP-tuning critical path. Tenant-wide rollout before per-S
 
 | Vendor | Console path | Key configuration values | Deployment-mode caveat | Known trap |
 |---|---|---|---|---|
-| MDA | Defender portal → Cloud apps → Policies → Policy management → Information protection → Create File policy | App filter = OneDrive + SharePoint (+ Box / Dropbox / GWS where API connector configured); Inspection method = Data Classification Service; SIT = regulated data class; Governance action = Put file in admin quarantine; Alert + notify owner with 14-day grace before second-stage quarantine | API-mode — post-upload scan, not real-time prevention. M365 latency near-real-time per Microsoft; Power BI / Dynamics 24-72hr per docs. File-policy ceiling = 200 per tenant (verify against current docs) | "Only the governance action of the first triggered policy is guaranteed to be applied" — policy ordering matters when multiple file policies could match. Externally-owned files in Box / Dropbox / Google Drive (where external user is the data owner under that platform's data model) are unscannable — only OneDrive reassigns ownership. Quarantine on a file under Microsoft Purview eDiscovery legal hold may be spoliation — Purview hold wins |
+| MDA | Microsoft Defender Portal → Cloud Apps → Policies → Policy management → Information protection → Create File policy | App filter = OneDrive + SharePoint (+ Box / Dropbox / GWS where API connector configured); Inspection method = Data Classification Service; SIT = regulated data class; Governance action = **Put file in admin quarantine**; Alert + notify owner with 14-day grace before second-stage quarantine | API-mode — post-upload scan, not real-time prevention. M365 latency near-real-time per Microsoft; Power BI / Dynamics 24-72hr per docs. **File-policy ceiling = 50 per tenant** per Microsoft Learn `data-protection-policies` Limitations section (current as of 2026-06). [Microsoft Learn: https://learn.microsoft.com/en-us/defender-cloud-apps/data-protection-policies] | "Only the governance action of the first triggered policy is guaranteed to be applied" — policy ordering matters when multiple file policies could match. [Microsoft Learn: https://learn.microsoft.com/en-us/defender-cloud-apps/data-protection-policies] Externally-owned files in Box / Dropbox / Google Drive (where external user is the data owner under that platform's data model) are unscannable — only OneDrive reassigns ownership. Quarantine on a file under Microsoft Purview eDiscovery legal hold may be spoliation (legal-counsel framing; not a Microsoft control statement) — Purview hold wins |
 | Netskope | `[unverified]` — Netskope CASB API + Native DLP | | | |
 | Palo Alto Prisma Access | `[unverified]` — SaaS Security API (formerly Aperture) | | | |
 | Skyhigh | `[unverified]` — Skyhigh API mode with multi-mode DLP | | | |
 | Zscaler | `[unverified]` — Zscaler SaaS Security API | | | |
 
 ## Worked configuration example (tier-2 BFSI baseline)
+
+SIT parameters reflect Microsoft documented parameter naming: `instance count` (expressed as `minCount` / `maxCount`) and `confidence level` (`confidenceLevel`). [Microsoft Learn: https://learn.microsoft.com/en-us/purview/sit-defn-credit-card-number] Earlier draft used `minimum_violations` — that is not Microsoft documentation.
 
 ```yaml
 policy:
@@ -107,20 +113,20 @@ policy:
     method: DataClassificationService
     sensitive_information_types:
       - id: "credit-card-number"
-        confidence: 75
-        minimum_violations: 5
+        confidenceLevel: High        # was: confidence: 75
+        minCount: 5                  # instance count — was: minimum_violations
       - id: "us-ssn"
-        confidence: 80
-        minimum_violations: 3
+        confidenceLevel: High        # was: confidence: 80
+        minCount: 3
       - id: "custom-sit:internal-claim-id"
-        confidence: 85
-        minimum_violations: 1
+        confidenceLevel: High        # was: confidence: 85
+        minCount: 1
   governance:
     stage_1:
-      action: AlertAndNotifyOwner
+      action: "Alert and notify owner"           # documented action
       grace_period_days: 14
     stage_2:
-      action: PutInAdminQuarantine
+      action: "Put file in admin quarantine"     # documented action — was: PutInAdminQuarantine
       quarantine_location: "Compliance-Quarantine/Claims/{yyyy-mm}/"
       retain_for_review_days: 90
   matching_content_handling:
@@ -133,13 +139,15 @@ policy:
     daily_alert_limit: 1000           # tune for historical scan; lower steady-state
 ```
 
-The `daily_alert_limit: 1000` is the operational ceiling — historical scans produce alert volumes orders of magnitude higher than steady-state. Cap to avoid SOC alert-channel saturation.
+The `daily_alert_limit: 1000` is the operational ceiling — historical scans produce alert volumes orders of magnitude higher than steady-state. Cap to avoid SOC alert-channel saturation. **Practitioner inference:** specific daily-alert-limit value is field observation, not Microsoft-documented.
+
+**File-policy budget:** with a 50-policy tenant ceiling, plan SIT consolidation early. PCI + PII + PHI + KYC + custom-SIT often consumes 3-5 file policies; reserve headroom for inline DLP, auto-label, external-share quarantine, and historical backfill scopes against the same 50-ceiling.
 
 ## Variants
 
 ### Industry-specific
 
-- **BFSI:** PCI + KYC drive the SIT set; aggressive quarantine action for cardholder data; integration with PCI DSS Req. 3.4 / 3.5 / Req. 7 attestation cycle
+- **BFSI:** PCI + KYC drive the SIT set; aggressive quarantine action for cardholder data; integration with PCI DSS Req. 3.4 / 3.5 / Req. 7 attestation cycle (illustrative — not regulatory advice)
 - **Healthcare:** PHI / patient-ID classifiers; HIPAA BAA + Purview-as-processor sub-list documentation; longer retention review periods for clinical-trial data
 - **Pharma / R&D:** clinical-trial protocol patterns + investigator-initiated-trial documentation; longer scan windows because legitimate-research-data lifecycles span years
 - **Tech:** source-code + secrets detection; API key formats; less PII focus; integration with code-scanning toolchain
@@ -150,17 +158,23 @@ The `daily_alert_limit: 1000` is the operational ceiling — historical scans pr
 
 - **Immature:** tenant-wide scan on day 1; SIT confidence defaults; no folder allowlist; first scan saturates Graph API + produces alert flood; programme rolled back to alert-only
 - **Mature:** per-BU phased scan with FP-tuned SITs; folder allowlist for known-archive scopes; Purview eDiscovery legal-hold integration; two-stage label-then-quarantine flow; quarterly attestation evidence
-- **Advanced:** integrated with records-retention workflow (quarantine triggers retention-decision; not just admin-store); cross-app coverage (M365 + Box + GWS + Dropbox unified policy); Adaptive Protection-integrated for risk-based per-user prioritisation; matching-content-snippet retention managed-as-code
+- **Advanced:** integrated with records-retention workflow (quarantine triggers retention-decision; not just admin-store); cross-app coverage (M365 + Box + GWS + Dropbox unified policy); Adaptive Protection-integrated for risk-based per-user prioritisation [Microsoft Learn: https://learn.microsoft.com/en-us/purview/insider-risk-management-adaptive-protection]; matching-content-snippet retention managed-as-code
 
 ## Control mappings
 
-- PCI DSS v4.0 Req. 3 (protect cardholder data); Req. 3.4 (PAN unreadable); Req. 3.5 (key management); Req. 7 (need-to-know access); Req. 12.10 (incident response) where PCI in scope
-- BNM RMiT clause(s): [BNM RMiT data leakage + records retention](../../06-compliance/malaysia/bnm-rmit.md) `[VERIFY]`
-- PDPA MY 2024 (Act A1709): personal-data protection; retention-period compliance
+- **Microsoft Zero Trust — Data pillar Objective III** (data classification + DLP + protection actions: remove permissions, quarantine, apply labels). Primary Microsoft architectural anchor. [Microsoft Learn: https://learn.microsoft.com/en-us/security/zero-trust/deploy/data]
+- **CIS Microsoft 365 Foundations Benchmark v5.0.0** (30 April 2025):
+  - **CIS 3.2.1 (L1)** — Ensure DLP policies are enabled (primary)
+  - **CIS 3.3.1 (L1)** — Ensure Microsoft 365 sensitive information types are configured (primary)
+  - **CIS 2.4.3 (L2)** — Ensure MDA / Defender for Cloud Apps integration is enabled (umbrella control for the entire MDA-dependent library)
+- **Microsoft Secure Score — Data group** improvement actions: DLP-policy coverage, sensitivity-label coverage, sensitive-information-type configuration. [Microsoft Learn: https://learn.microsoft.com/en-us/defender-xdr/microsoft-secure-score | https://learn.microsoft.com/en-us/defender-xdr/microsoft-secure-score-improvement-actions]
+- PCI DSS v4.0 Req. 3 (protect cardholder data); Req. 3.4 (PAN unreadable); Req. 3.5 (key management); Req. 7 (need-to-know access); Req. 12.10 (incident response) where PCI in scope — illustrative; not regulatory advice
+- BNM RMiT clause(s): [BNM RMiT data leakage + records retention](../../06-compliance/malaysia/bnm-rmit.md) `[VERIFY]` — illustrative; not regulatory advice
+- PDPA MY 2024 (Act A1709): personal-data protection; retention-period compliance — illustrative
 - ISO 27017 control(s): [CLD.12.4.5 monitoring, CLD.8.1.5 removal of assets](../../06-compliance/iso-27017.md) `[VERIFY]`
 - ISO 27018 control(s): A.10 (use limitation), A.11 (sub-processor disclosure)
 - NIST CSF 2.0 subcategory(ies): `PR.DS-05`, `DE.CM-03`, `RS.MI-02` `[VERIFY]`
-- HIPAA Security Rule §164.308(a)(1)(ii)(D) (information system activity review) where PHI in scope `[VERIFY]`
+- HIPAA Security Rule §164.308(a)(1)(ii)(D) (information system activity review) where PHI in scope `[VERIFY]` — illustrative; not regulatory advice
 
 ## False-positive risk
 
@@ -170,6 +184,8 @@ The `daily_alert_limit: 1000` is the operational ceiling — historical scans pr
 - Files containing regulated-data field-structure references (HR template that references SSN field) but no actual data
 
 ## Real-world FP experience
+
+Practitioner-observed ranges; not from Microsoft documentation. Validate against tenant baseline.
 
 | Week | Typical FP rate | Dominant cause |
 |---|---|---|
@@ -196,14 +212,14 @@ Named FP scenarios:
 - **Triage load:** high during initial scan saturation; medium during phased rollout; low steady-state once classification debt is cleared
 - **End-user friction:** medium-to-high during initial scan (notification surge + quarantine-recovery requests); low steady-state
 
-Typical staffing: 0.5-1.0 FTE during the 16-week ramp; 0.2-0.3 FTE steady-state; for M&A or post-incident scenarios, temporary contractor FTE expansion (2-4 analysts for 3 months) is common.
+Typical staffing: 0.5-1.0 FTE during the 16-week ramp; 0.2-0.3 FTE steady-state; for M&A or post-incident scenarios, temporary contractor FTE expansion (2-4 analysts for 3 months) is common. **Practitioner inference:** staffing ranges are field observations; not Microsoft-documented.
 
 ## Privacy / data-protection considerations
 
-- Matching-content snippet stored in CASB metadata = regulated content (PCI / PII / PHI / etc.) — itself subject to storage controls under PCI DSS 3.4 / 3.5, HIPAA Security Rule, and PDPA / GDPR
+- Matching-content snippet stored in CASB metadata = regulated content (PCI / PII / PHI / etc.) — itself subject to storage controls under PCI DSS 3.4 / 3.5, HIPAA Security Rule, and PDPA / GDPR (illustrative; not regulatory advice)
 - Cross-border-transfer: where DCS / classification engine performs the scan vs where the tenant data resides
 - Sub-processor list update: Microsoft Purview becomes the classification processor — document in DPA + customer notification cycle
-- Workforce notice scope: content inspection on workforce files at rest is in addition to inline inspection; document under PDPA MY 2024 / GDPR Art. 88
+- Workforce notice scope: content inspection on workforce files at rest is in addition to inline inspection; document under PDPA MY 2024 / GDPR Art. 88 (illustrative; not regulatory advice)
 
 ## Integration with broader programmes
 
@@ -213,18 +229,20 @@ Typical staffing: 0.5-1.0 FTE during the 16-week ramp; 0.2-0.3 FTE steady-state;
 - **M&A integration:** pre-close scan as due-diligence input; post-close systematic backfill as integration milestone
 - **DPIA cycle:** annual DPIA refresh includes scanning-scope + snippet-retention + workforce-monitoring review
 - **Board reporting:** quarterly metric — classification coverage (% files scanned + labelled); legacy-debt trajectory (declining trend)
+- **Purview eDiscovery integration:** ensure legal-hold scope is excluded before quarantine action runs. Classic eDiscovery experiences retired 2025-08-31; references should point at the new Purview eDiscovery experience. [Microsoft Learn: https://learn.microsoft.com/en-us/purview/ediscovery-overview]
 
 ## Anti-patterns specific to this policy
 
 1. **"Tenant-wide scan on day 1"** — saturates Graph API rate limits; partial-coverage silently; long-running scans timeout or back off without operator notification
-2. **"SIT confidence defaults"** — Microsoft's default ~50% confidence is calibrated for inline inspection; at-rest scan against 5+ years of accumulated data produces 80%+ FP rate at defaults; tune to 75-80%
+2. **"SIT confidence defaults"** — Microsoft's default confidence is calibrated for inline inspection; at-rest scan against 5+ years of accumulated data produces 80%+ FP rate at defaults; tune confidence level + instance count per SIT (practitioner observation)
 3. **"Quarantine first; let users complain"** — sound bite is satisfying but generates trust crisis; always run two-stage notify-then-quarantine
 4. **"Skip the matching-content snippet retention review"** — snippet IS regulated content; PCI DSS 3.4 / 3.5 controls apply; auditor will find the unprotected snippet store
-5. **"Skip Purview eDiscovery legal-hold exclusion"** — quarantine of legal-hold material = spoliation
+5. **"Skip Purview eDiscovery legal-hold exclusion"** — quarantine of legal-hold material may be spoliation (legal-counsel framing; coordinate with legal before designing the exclusion list)
 6. **"Run on Power BI / Dynamics 365 connectors"** — connector latency (24-72hr per docs) makes the policy effectively meaningless for those workloads
 7. **"Treat externally-owned files in Box / Dropbox / Google Drive as scannable"** — they are not (only OneDrive reassigns ownership); policy silently misses them
 8. **"No record-of-decision for quarantine actions"** — auditor asks "show me the quarantine decision for file X"; without per-action evidence the policy fails control-effectiveness test
 9. **"Bound the policy by data-class only, not by folder scope"** — for a multi-year-debt tenant, this produces overwhelming initial volume; phase by folder hierarchy
+10. **"Exceed the 50-file-policy tenant ceiling without consolidation plan"** — file policies are capped at 50 per tenant per Microsoft Learn `data-protection-policies`; new policy creation fails silently or displaces an existing one if not actively planned
 
 ## Coverage gaps
 
@@ -233,7 +251,7 @@ Typical staffing: 0.5-1.0 FTE during the 16-week ramp; 0.2-0.3 FTE steady-state;
 - Externally-owned files in third-party SaaS where external user retains ownership — unscannable
 - Files larger than DCS content-inspection limit — unscannable
 - Pre-existing files in tenant before policy enabled — backfill scan required as separate operation
-- Image-format regulated content — DCS does not OCR at scan layer
+- Image-format regulated content — DCS does not OCR at scan layer `[VERIFY against current Microsoft Purview content-inspection documentation]`
 
 ## Three-lens sign-off
 

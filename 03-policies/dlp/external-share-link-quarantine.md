@@ -1,14 +1,16 @@
 # External share-link quarantine
 
 > Status: v0.0 — MDA column from playbook v1; other vendors `[unverified]`.
-> Depth: **Tier 2 — deep-dive**.
+> Depth: **Tier 2 — deep-dive (Microsoft-standards QA applied 2026-06-10)**.
 > Required capabilities: [Share-link governance + API-mode DLP](../../02-capabilities/capability-matrix.md).
 > Deployment-mode requirement: API connector.
-> MDA playbook reference: [Policy 7](../../04-vendors/microsoft-defender-for-cloud-apps.md) (Quarantine externally-shared OneDrive files).
+> MDA playbook reference: [Policy 7](../../04-vendors/microsoft-defender-for-cloud-apps.md) (Quarantine externally-shared OneDrive files) — internal numbering, not Microsoft documentation.
 
 ## Purpose
 
 Identify files in sanctioned cloud storage that are shared externally and have not been accessed or modified within a defined window; two-stage notify-then-quarantine flow. Catches the sharing-drift class — old external shares accumulate over years, each a small leak. Counters MITRE ATT&CK `T1213 Data from Information Repositories` (long-tail cleanup), and indirectly `T1199 Trusted Relationship` when the original share recipient relationship has ended but access persists.
+
+Microsoft architectural anchor: Data Zero Trust pillar, Objective III "Encrypt and govern sensitive data" — Microsoft documents three governance actions (remove permissions, quarantine, apply labels) as the canonical at-rest control set [Microsoft Learn: https://learn.microsoft.com/en-us/security/zero-trust/deploy/data].
 
 ## What organisations use this for
 
@@ -54,17 +56,17 @@ Typical 10-week rollout for a tenant with multi-year accumulated sharing drift:
 | W2 | Stale-window decision (90 / 180 / 365 days); folder-allowlist definition (templates, intentionally public content); owner-notification email template review with Legal | Stale window + allowlist signed off |
 | W3 | Configure Stage 1 policy = Notify owner; Action = Alert only initially | Notification-only baseline; owner-response rate measured |
 | W4-W5 | Pilot Stage 1 with one BU; refine notification message based on owner feedback; document common exception classes | Notification-FP rate baseline |
-| W6 | Configure Stage 2 policy = Quarantine (separate file policy, 14 days after Stage 1); coordinate with Legal on Purview eDiscovery legal-hold interaction | Two-stage policy live in alert mode |
+| W6 | Configure Stage 2 policy = Quarantine (separate file policy, 14 days after Stage 1); coordinate with Legal on Purview eDiscovery + M365 retention engine interaction | Two-stage policy live in alert mode |
 | W7 | Flip to enforce-mode for pilot BU; first quarantine actions; help-desk preparation for "where did my file go" tickets | First wave of quarantines with recovery path tested |
 | W8-W10 | Phased rollout to remaining BUs | Tenant-wide coverage |
 | W11+ | Quarterly steady-state — scan + notify + quarantine + report | Ongoing cadence; auditor-evidence package generated quarterly |
 
-The Legal coordination at W6 is the long pole — Purview eDiscovery legal holds override quarantine actions; the operational ownership of the override needs to be clear before scaling up.
+The Legal coordination at W6 is the long pole — Purview eDiscovery legal holds and M365 retention-policy holds override the practical effect of quarantine actions; the operational ownership of the override needs to be clear before scaling up. Purview eDiscovery is the new (Purview portal) eDiscovery experience; the classic eDiscovery experiences retired 2025-08-31 [Microsoft Learn: https://learn.microsoft.com/en-us/purview/ediscovery-overview].
 
 ## Action
 
 - Primary (Stage 1): **notify** file owner with 14-day grace period
-- Primary (Stage 2, 14 days later): **quarantine** (move to admin-owned location) on no-response
+- Primary (Stage 2, 14 days later): **Put file in admin quarantine** (move to admin-owned location) on no-response — Microsoft governance-action name per `file-policies` documentation [Microsoft Learn: https://learn.microsoft.com/en-us/defender-cloud-apps/data-protection-policies]
 
 ## Scope
 
@@ -78,7 +80,7 @@ The Legal coordination at W6 is the long pole — Purview eDiscovery legal holds
 
 | Vendor | Console path | Key configuration values | Deployment-mode caveat | Known trap |
 |---|---|---|---|---|
-| MDA | Defender portal → Cloud apps → Policies → Policy management → Information protection → Create File policy (two policies, 14 days apart) | **Stage 1:** App = OneDrive for Business; Access level = External OR Public-with-a-link OR Public; Last modified = >180 days; Governance action = Notify owner; severity = Medium. **Stage 2:** same filters, Governance action = Put file in admin quarantine; severity = High. Exclude folder allowlist (`/Shared Templates`, etc.) | API-mode; SharePoint multi-geo "supported only for OneDrive" per docs; SharePoint events not fully captured in multi-geo tenants | Single-step quarantine breaks links for internal users still referencing the file; owner-notification email often lands in junk. Always run notify-then-quarantine. **A quarantined file under Purview eDiscovery legal hold may be spoliation** — Purview hold wins, but operator may not know about hold at policy-design time. Consult Legal before policy design |
+| MDA | Microsoft Defender Portal → Cloud Apps → Policies → Policy management → Information protection → Create File policy (two policies, 14 days apart) | **Stage 1:** App = OneDrive for Business; Access level = External OR Public-with-a-link OR Public; Last modified = >180 days; Governance action = "Notify owner"; severity = Medium. **Stage 2:** same filters, Governance action = "Put file in admin quarantine"; severity = High. Exclude folder allowlist (`/Shared Templates`, etc.) | API-mode; SharePoint multi-geo "supported only for OneDrive" per docs; SharePoint events not fully captured in multi-geo tenants | Single-step quarantine breaks links for internal users still referencing the file; owner-notification email often lands in junk. Always run notify-then-quarantine. **Practitioner inference (legal-counsel framing, not Microsoft-documented):** quarantining a file under a Purview eDiscovery legal hold or M365 retention-policy hold can be characterised as spoliation in some jurisdictions. Microsoft's retention engine takes precedence over the quarantine action at the platform level, but the operator may not know about the hold at policy-design time. Consult Legal before policy design |
 | Netskope | `[unverified]` — Netskope CASB API with share-link governance | | | |
 | Palo Alto Prisma Access | `[unverified]` — SaaS Security API | | | |
 | Skyhigh | `[unverified]` — multi-mode external-sharing controls | | | |
@@ -100,7 +102,7 @@ stage_1_notify:
       - "/Sites/*-Public/*"           # known-intentionally-public spaces
       - "/Compliance Archive/*"
   governance:
-    action: NotifyOwner
+    action: "Notify owner"
     email_template: "stale-share-notify-v3"
     grace_period_days: 14
   alerts:
@@ -119,16 +121,19 @@ stage_2_quarantine:
       - "/Shared Templates/*"
       - "/Sites/*-Public/*"
       - "/Compliance Archive/*"
-    purview_legal_hold: false           # exclude files under Purview eDiscovery hold
+    # Note: there is no MDA File Policy filter named `purview_legal_hold`.
+    # Legal-hold exclusion is enforced by the M365 retention engine, not by
+    # an MDA file-policy filter. The cross-reference below documents the
+    # operational coordination required.
   governance:
-    action: PutInAdminQuarantine
+    action: "Put file in admin quarantine"
     notify_owner: true
   alerts:
     severity: High
     email_recipients: [share-cleanup@example.com, soc-l1@example.com]
 ```
 
-The `purview_legal_hold: false` filter is critical — without it, the policy can spoliate legal-hold material. Coordinate the rule construction with Legal.
+**Legal-hold cross-reference (M365 retention engine, not an MDA filter).** Files under a Purview eDiscovery hold or a Microsoft 365 retention-policy hold are protected at the M365 retention-engine layer; the retention engine takes precedence over the practical effect of a quarantine action. There is no MDA File Policy filter that pre-excludes legal-hold files [Microsoft Learn: https://learn.microsoft.com/en-us/purview/ediscovery-overview; https://learn.microsoft.com/en-us/purview/retention]. Operationally: (a) coordinate with the Legal / eDiscovery team to identify users / sites under active hold before policy enforcement; (b) where possible, exclude affected sites or OneDrive scopes via `parent_folder_exclude` or app/site scoping until the hold is released; (c) document the coordination workflow in the policy runbook.
 
 ## Variants
 
@@ -144,14 +149,25 @@ The `purview_legal_hold: false` filter is critical — without it, the policy ca
 ### Maturity-based
 
 - **Immature:** single-stage quarantine policy; tenant-wide; no folder allowlist; no Legal coordination; broken-link complaints flood help desk; programme rolled back to alert-only
-- **Mature:** two-stage notify-then-quarantine with documented 14-day grace; folder allowlist for known-intentionally-public content; Purview eDiscovery legal-hold exclusion; quarterly attestation evidence cycle; owner-notification templates tuned to common scenarios
+- **Mature:** two-stage notify-then-quarantine with documented 14-day grace; folder allowlist for known-intentionally-public content; M365 retention-engine + Purview eDiscovery legal-hold coordination workflow; quarterly attestation evidence cycle; owner-notification templates tuned to common scenarios
 - **Advanced:** integrated with records-retention workflow (stale-share triggers retention-decision rather than just quarantine); engagement-management-system integration (project closure auto-revokes engagement-specific shares); cross-app share-link governance (OneDrive + SharePoint + Box + Dropbox + Google Drive unified policy)
 
 ## Control mappings
 
-- BNM RMiT clause(s): [BNM RMiT data leakage prevention](../../06-compliance/malaysia/bnm-rmit.md) `[VERIFY]`
-- ISO 27017 control(s): [CLD.12.4.5 monitoring, CLD.8.1.5 removal of assets](../../06-compliance/iso-27017.md) `[VERIFY]`
-- ISO 27018 control(s): A.10 (use limitation), A.5 (sub-processor disclosure where shared externally)
+- **CIS Microsoft 365 Foundations Benchmark v5.0.0** (30 April 2025) — this policy has the strongest direct CIS map in the library:
+  - CIS 7.2.3 (L1) — sharing capability restriction
+  - CIS 7.2.4 (L2) — anyone-link controls
+  - CIS 7.2.5 (L2) — expiration of anyone links
+  - CIS 7.2.6 (L2) — re-authentication of external recipients
+  - CIS 7.2.7 (L1) — link permission defaults
+  - CIS 7.2.9 (L1) — external sharing of OneDrive content
+  - CIS 7.2.11 (L1) — guest access review
+  - CIS 2.4.3 (L2) — Defender for Cloud Apps as the platform delivering the share-link governance
+- **Microsoft Secure Score** — Apps group + Data group improvement actions covering external-sharing governance and data-protection posture [Microsoft Learn: https://learn.microsoft.com/en-us/defender-xdr/microsoft-secure-score; https://learn.microsoft.com/en-us/defender-xdr/microsoft-secure-score-improvement-actions]
+- **Microsoft Zero Trust — Data pillar, Objective III** "Encrypt and govern sensitive data" — Microsoft canonical anchor for the three governance actions (remove permissions, quarantine, apply labels) [Microsoft Learn: https://learn.microsoft.com/en-us/security/zero-trust/deploy/data]
+- BNM RMiT clause(s): [BNM RMiT data leakage prevention](../../06-compliance/malaysia/bnm-rmit.md) `[VERIFY against current edition]` — illustrative; not regulatory advice
+- ISO 27017 control(s): [CLD.12.4.5 monitoring, CLD.8.1.5 removal of assets](../../06-compliance/iso-27017.md) `[VERIFY]` — illustrative
+- ISO 27018 control(s): A.10 (use limitation), A.5 (sub-processor disclosure where shared externally) — illustrative
 - NIST CSF 2.0 subcategory(ies): `PR.DS-05`, `RS.MI-02` `[VERIFY]`
 - SOC 2 CC6.1 (logical access) where relevant for service-organisation tenants
 
@@ -160,10 +176,12 @@ The `purview_legal_hold: false` filter is critical — without it, the policy ca
 - Stale-but-intentional shares (contract templates, public reference docs) — exclude via folder allowlist
 - Files whose `Last modified` is touched by automated processes (BCM rehearsals, schema-update jobs) — may bypass the 180-day filter inadvertently
 - Shares to known-trusted external domains that ought to persist (long-term vendor collaboration spaces) — name-based exception
-- Files under Purview eDiscovery legal hold — must be excluded explicitly
+- Files under Purview eDiscovery legal hold or M365 retention-policy hold — must be excluded by operational coordination (no MDA filter exists)
 - Customer-portal-facing intentional external sharing (e.g. shared workspaces for active customers) — separate folder scope
 
 ## Real-world FP experience
+
+> Practitioner-observed ranges; not from Microsoft documentation. Validate against tenant baseline.
 
 | Week | Typical FP rate | Dominant cause |
 |---|---|---|
@@ -186,32 +204,32 @@ Named FP scenarios:
 ## Operational cost
 
 - **Exception-handling load:** high during first 12-week ramp (50-100 exceptions per week typical for 1k-user tenant with multi-year drift); medium steady-state (10-20 per week)
-- **Triage load:** low — automated through Stage 1 / 2; only escalations to legal hold review require analyst time
+- **Triage load:** low — automated through Stage 1 / 2; only escalations to legal-hold review require analyst time
 - **End-user friction:** medium initially (notification spike + quarantined-file-recovery requests); low steady-state once ongoing-share-hygiene becomes culturally embedded
 
-Typical staffing: 0.2-0.3 FTE during the 12-week ramp; 0.1 FTE steady-state; ~5-10% incremental help-desk time during high-notify weeks.
+Typical staffing: 0.2-0.3 FTE during the 12-week ramp; 0.1 FTE steady-state; ~5-10% incremental help-desk time during high-notify weeks (practitioner observation).
 
 ## Privacy / data-protection considerations
 
 - Owner-notification emails name files + recipients — file metadata is workforce-monitoring-adjacent data
 - Files containing personal data of external recipients (customers, partners, candidates) — quarantine event may itself be a regulated data-handling action
-- Purview eDiscovery interaction is the dominant Legal/Privacy coordination point
+- Purview eDiscovery + M365 retention-engine interaction is the dominant Legal / Privacy coordination point
 - Cross-border-transfer implications where external-recipient is in a different jurisdiction — document under PDPA / GDPR transfer regime
 
 ## Integration with broader programmes
 
-- **Records-retention policy:** stale-share-quarantine is the operational arm of retention policy for externally-shared content; integrate with retention-decision workflow
+- **Records-retention policy:** stale-share-quarantine is the operational arm of retention policy for externally-shared content; integrate with the M365 retention engine decision workflow
 - **M&A workflow:** pre-close hygiene scan; carve-out-period exposure tracking; post-close cleanup
 - **Engagement-management:** project-closure auto-revoke; engagement-team-end-of-project review
 - **Annual audit:** quarterly attestation cycle; remediation-log evidence; auditor sample-pull of quarantine actions
-- **Privacy + Legal:** Purview eDiscovery legal-hold coordination; Subject Access Request handling integration
+- **Privacy + Legal:** Purview eDiscovery + retention legal-hold coordination; Subject Access Request handling integration
 - **Board reporting:** quarterly metric — externally-shared file count by sensitivity (declining trend); stale-share count (declining trend)
 
 ## Anti-patterns specific to this policy
 
 1. **"Single-step quarantine without owner notification"** — breaks internal users' links to the file; owner has no warning; help-desk flood + trust crisis
 2. **"Tenant-wide single stale window"** — different BUs / data classes have different legitimate share lifecycles; uniform window over-quarantines some, under-covers others
-3. **"Skip the Purview legal-hold exclusion"** — quarantine of legal-hold material = potential spoliation = legal exposure
+3. **"Assume an MDA filter handles legal-hold exclusion"** — there is no MDA File Policy filter for Purview eDiscovery / retention hold status. Exclusion is enforced by the M365 retention engine and by operational coordination with Legal; failing to coordinate can result in quarantine actions on hold-protected material with downstream legal exposure (practitioner inference; legal-counsel framing)
 4. **"Owner-notification email lacks recovery path"** — owner notified but doesn't know how to renew the share or retrieve the file; quarantines accumulate
 5. **"Run aggressively without folder allowlist"** — intentionally-public content (templates, public docs) gets quarantined; users lose trust in the policy
 6. **"Quarantine acts on external-share metadata without examining content sensitivity"** — high-volume + low-discrimination; missed opportunity to prioritise sensitive-content shares

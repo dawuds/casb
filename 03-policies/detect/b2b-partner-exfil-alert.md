@@ -1,20 +1,24 @@
 # B2B / partner-tenant exfiltration alert
 
 > Status: v0.0 — MDA column from playbook v1 (Policy 6b — Day 30 addition); other vendors `[unverified]`.
-> Depth: **Tier 2 — deep-dive**.
+> Depth: **Tier 2 — deep-dive (Microsoft-standards QA applied 2026-06-10)**.
 > Required capabilities: [Anomalous-activity detection + B2B guest-user attribution](../../02-capabilities/capability-matrix.md).
 > Deployment-mode requirement: API connector.
-> MDA playbook reference: [Policy 6b](../../04-vendors/microsoft-defender-for-cloud-apps.md) (B2B / partner-tenant exfiltration alert).
+> MDA playbook reference: [Policy 6b](../../04-vendors/microsoft-defender-for-cloud-apps.md) (B2B / partner-tenant exfiltration alert) — internal playbook numbering, not a Microsoft Learn nomenclature.
 
 ## Purpose
 
 Detect external-domain guest-user file operations (download / share) against the tenant at volumes exceeding a threshold. Counters MITRE ATT&CK `T1199 Trusted Relationship` (Detect) and `T1213.002 SharePoint` (Detect). Catches Storm-0539 / Storm-2372-style consent-phishing-into-B2B attack chains, where the actor lands inside a partner tenant via consent abuse, then walks the trust relationship into the host tenant's SharePoint surface.
 
+> **Practitioner inference:** Microsoft's published Storm-0539 reporting is gift-card-fraud-centric, and Storm-2372 reporting focuses on device-code phishing. The specific linkage to consent-phishing-into-B2B trust-walk against SharePoint is a practitioner pattern observed across BFSI deployments; it is consistent with the documented TTPs but is not itself a Microsoft-named attack chain. See Microsoft Security Blog Storm-0539 (Dec 2023, May 2024) and Microsoft Threat Intelligence Storm-2372 reporting (Feb 2025) for the verified TTPs `[VERIFY current URLs at learn.microsoft.com / microsoft.com/security/blog]`. Threat-actor names follow Microsoft canonical taxonomy [Microsoft Learn: https://learn.microsoft.com/en-us/unified-secops/microsoft-threat-actor-naming].
+
+> **June 2025 built-in anomaly-policy wave (boilerplate for detect/* files):** Several built-in anomaly policies were transitioned to a dynamic-threat-detection model in June 2025 and renamed — Activity from suspicious IP addresses; Suspicious inbox forwarding; Suspicious inbox manipulation rules; Activity from anonymous IP addresses; Ransomware activity; Suspicious file access activity by user; Unusual ISP for an OAuth App; Suspicious email deletion activity. This B2B-partner-exfil policy is a **custom Activity Policy** and is not directly affected, but downstream correlation (e.g. cross-referencing the dynamic-detection signals against guest-user behaviour) should account for the renames. Source: [Microsoft Learn: https://learn.microsoft.com/en-us/defender-cloud-apps/anomaly-detection-policy] (Important notice).
+
 ## What organisations use this for
 
 The policy exists because the partner-tenant surface is the surface most security teams have least visibility into. Identity sits in the partner tenant, the device is the partner's device, the access decision was historically made by the partner — and yet the data being read or shared lives in your tenant. A standard insider-risk threshold (per [`./mass-download-alert.md`](./mass-download-alert.md)) does not catch this class because the actor is a guest user, not an employee, and most CASB activity policies are scoped against the employee population.
 
-The deployment is rarely greenfield. It is almost always part of a **Cross-Tenant Access Settings (XTAS) hardening programme** — the policy is the detect leg that sits behind the XTAS allow-list, catching what XTAS lets through. Without XTAS first, the alert volume is unmanageable. Without the alert, XTAS is a static control with no telemetry on whether the allow-list still reflects current behaviour.
+The deployment is rarely greenfield. It is almost always part of a **Cross-Tenant Access Settings (cross-tenant access settings, abbreviated XTAS here) hardening programme** — the policy is the detect leg that sits behind the XTAS allow-list, catching what XTAS lets through. Without XTAS first, the alert volume is unmanageable. Without the alert, XTAS is a static control with no telemetry on whether the allow-list still reflects current behaviour. (Note: Microsoft Learn uses "cross-tenant access settings" lowercase; XTAS / CTAS abbreviations are practitioner convention.)
 
 ### Use case 1 — Tier-1 ASEAN universal bank, post-Storm-2372 OAuth-cleanup wave
 
@@ -81,7 +85,7 @@ The W1-W3 inventory + XTAS hardening is the work. Deploying the activity policy 
 
 | Vendor | Console path | Key configuration values | Deployment-mode caveat | Known trap |
 |---|---|---|---|---|
-| MDA | Defender portal → Cloud apps → Policies → Policy management → Threat detections → Create Activity policy | Activity type = Download file OR Share file; User type = External user; Threshold = baseline-derived; starting point 1,000 in 24h (BFSI) or 5,000 in 24h (consulting); Action = Alert + email to identity admin and SOC; Scope = all sanctioned SharePoint + OneDrive sites; partner-tenant differentiation via `AccountObjectId` filter where per-tenant tiering is desired | API-mode; post-event; classification of user as External depends on the user's home-tenant claim — pre-existing federation misconfigurations propagate into this filter | "External user" classification depends on the user's home tenant claim — mis-classification at federation time means the filter misses them. A compromised partner-tenant account behaving within threshold per session = slow-and-low B2B exfil (sub-threshold). Activity-policy auto-disable at 200k/day or 100k/3h — partner-tenant bulk events can saturate; silent saturation looks like alert decline. Pair with XTAS restricting partner scope, NOT as a substitute for XTAS. Guest accounts with `UserType` manually flipped to Member (a common workaround for partners with frequent access) silently drop off the filter |
+| MDA | Microsoft Defender Portal → Cloud Apps → Policies → Policy management → Threat detections → Create Activity policy | Activity type = Download file OR Share file; User type = External user; Threshold = baseline-derived; starting point 1,000 in 24h (BFSI) or 5,000 in 24h (consulting); Action = Alert + email to identity admin and SOC; Scope = all sanctioned SharePoint + OneDrive sites; partner-tenant differentiation via `AccountObjectId` filter where per-tenant tiering is desired | API-mode; post-event; classification of user as External depends on the user's home-tenant claim — pre-existing federation misconfigurations propagate into this filter | "External user" classification depends on the user's home tenant claim — mis-classification at federation time means the filter misses them. A compromised partner-tenant account behaving within threshold per session = slow-and-low B2B exfil (sub-threshold). **Activity-policy auto-disable thresholds (commonly cited as 200k/day, 100k/3h)** — **`[VERIFY against current Microsoft Learn `activity-policy` / `data-protection-policies` Limitations pages]`**; could not confirm a public Microsoft Learn URL at QA time. Practitioner-observed behaviour: partner-tenant bulk events can saturate; silent saturation looks like alert decline. Pair with XTAS restricting partner scope, NOT as a substitute for XTAS. Guest accounts with `UserType` manually flipped to Member (a common workaround for partners with frequent access) silently drop off the filter |
 | Netskope | `[unverified]` — Netskope external-user attribution + activity policy | | | |
 | Palo Alto Prisma Access | `[unverified]` — SaaS Security external-user policies | | | |
 | Skyhigh | `[unverified]` — Skyhigh CASB external-user detection | | | |
@@ -161,7 +165,7 @@ The `count_threshold: 1000` value should be **derived from the partner-tenant in
 - **Healthcare:** partner population includes HIE (health-information-exchange) tenants, research collaborators, clinical-trial sponsors; legitimate-bulk-download patterns dominate (dataset packs for collaborative analysis); per-trial / per-protocol allowlist; HIPAA business-associate-agreement (BAA) status drives partner-tenant tiering
 - **Tech / SaaS:** partner-tenants for joint-engineering, design partners, customer-side admin tenants accessing vendor's support workspaces; project-end "grab everything" pattern dominates FPs; engagement-end exception workflow is the operational reality
 - **Retail:** loyalty-programme partners, marketing-agency partners, supply-chain partners; partner-tenant inventory tends to be large and stale (orphaned partners post-engagement); XTAS hygiene is the main fight before policy deployment is meaningful
-- **Public sector / Legal:** inter-agency collaboration tenants, external legal-counsel tenants, matter-coordinator workflows; eDiscovery / matter-management workflows produce legitimate-bulk-download events; matter-coordinator UPN allowlist; protective-marking-scheme cross-walk
+- **Public sector / Legal:** inter-agency collaboration tenants, external legal-counsel tenants, matter-coordinator workflows; Purview eDiscovery / matter-management workflows produce legitimate-bulk-download events; matter-coordinator UPN allowlist; protective-marking-scheme cross-walk [Microsoft Learn: https://learn.microsoft.com/en-us/purview/ediscovery-overview] (the classic eDiscovery experiences were retired 2025-08-31; the new Purview eDiscovery is the supported surface)
 
 ### Maturity-based
 
@@ -171,11 +175,19 @@ The `count_threshold: 1000` value should be **derived from the partner-tenant in
 
 ## Control mappings
 
-- BNM RMiT clause(s): [BNM RMiT third-party risk + DLP + cybersecurity operations](../../06-compliance/malaysia/bnm-rmit.md) `[VERIFY against current edition]`
+- **CIS Microsoft 365 Foundations Benchmark v5.0.0** (30 April 2025) — direct maps for this policy:
+  - **CIS 5.1.6.1 (L2)** Ensure that collaboration invitations are sent to allowed domains only — primary upstream control that constrains the inbound guest population this policy then monitors
+  - **CIS 5.1.6.2 (L1)** Ensure 'External sharing' of calendars is not available — peripheral but part of the external-collaboration surface
+  - **CIS 5.1.6.3 (L2)** Ensure 'External Identities' inbound restriction is configured — the cross-tenant access settings control surface
+  - **CIS 5.3.2 (L1)** Ensure 'Privileged Identity Management' is used to manage roles — peripheral; relevant where partner-tenant abuse escalates to host-tenant role assignment
+  - **CIS 7.2.5 (L2)** Ensure that SharePoint guest users cannot share items they don't own — pairs directly with this detect leg to constrain the action a compromised guest can take
+  - **CIS 2.4.3 (L2)** umbrella — "Ensure additional security mechanisms are configured" (Microsoft Defender for Cloud Apps as the named MDA-dependent detection layer)
+- **Microsoft Secure Score** — Identity group ("Restrict guest user permissions", "Allow only specific external domains") + Apps group ("Block sharing with external users on documents not labeled") [Microsoft Learn: https://learn.microsoft.com/en-us/defender-xdr/microsoft-secure-score] and [Microsoft Learn: https://learn.microsoft.com/en-us/defender-xdr/microsoft-secure-score-improvement-actions]. Note: Microsoft Secure Score restructured to a four-group model (Identity / Device / Apps / Data) — earlier five-group references including Infrastructure are stale.
+- BNM RMiT clause(s): [BNM RMiT third-party risk + DLP + cybersecurity operations](../../06-compliance/malaysia/bnm-rmit.md) `[VERIFY against current edition]` (illustrative only — not regulatory advice)
 - ISO 27017 control(s): [CLD.6.3.1 shared responsibility; CLD.12.4.5 monitoring](../../06-compliance/iso-27017.md) `[VERIFY]`
 - ISO 27018 control(s): A.10 (use limitation); A.11 (third-party relationships)
 - NIST CSF 2.0 subcategory(ies): `DE.CM-06` (external service-provider activity monitored), `PR.AA-05` (access permissions), `ID.SC-04` (suppliers monitored), `GV.SC-07` (supplier risk management) `[VERIFY]`
-- DORA (EU) ICT third-party-risk articles where applicable `[VERIFY]`
+- DORA (EU) ICT third-party-risk articles where applicable `[VERIFY]` (illustrative only — not legal/regulatory advice)
 - MAS TRM external-party-risk sections where applicable `[VERIFY]`
 
 ## False-positive risk
@@ -189,7 +201,7 @@ The `count_threshold: 1000` value should be **derived from the partner-tenant in
 
 ## Real-world FP experience
 
-Typical FP-rate trajectory for a tier-2 BFSI tenant deploying after XTAS hardening:
+Typical FP-rate trajectory for a tier-2 BFSI tenant deploying after XTAS hardening. **Practitioner-observed ranges; not from Microsoft documentation. Validate against tenant baseline.**
 
 | Week | Typical FP rate | Dominant cause |
 |---|---|---|
@@ -229,13 +241,13 @@ Typical staffing: 0.1-0.2 FTE identity admin for XTAS attestation + partner-tena
 - Cross-border processing concerns when partner-tenant home region differs from host-tenant data residency
 - DPIA scope: activity-log retention + cross-correlation with vendor-risk-register data + partner-tenant identity attributes
 - Workforce notice does NOT apply (the user is external); partner-side notice depends on the partner's own workforce-monitoring posture
-- For PDPA MY 2024: data-sharing arrangements with external parties subject to documented controller / processor mapping; this policy generates evidence relevant to that mapping
+- For PDPA MY 2024: data-sharing arrangements with external parties subject to documented controller / processor mapping; this policy generates evidence relevant to that mapping (illustrative; not legal advice)
 
 ## Integration with broader programmes
 
 - **Vendor-risk programme:** the partner-tenant inventory feeds vendor-risk register reconciliation; alert events feed vendor-incident-notification workflow; quarterly XTAS attestation is a control-effectiveness signal for the vendor-risk programme
 - **XTAS attestation cycle:** policy alerts surface partners whose actual activity deviates from documented engagement scope — primary input to quarterly XTAS allow-list review
-- **Audit cycle:** activity-policy coverage + measured TP/FP rate + named-partner-incident evidence feed the annual third-party-risk control-effectiveness review (under BNM RMiT third-party-risk / DORA ICT TPRM / MAS TRM external-party-risk regimes) `[VERIFY clause-specific obligations]`
+- **Audit cycle:** activity-policy coverage + measured TP/FP rate + named-partner-incident evidence feed the annual third-party-risk control-effectiveness review (under BNM RMiT third-party-risk / DORA ICT TPRM / MAS TRM external-party-risk regimes) `[VERIFY clause-specific obligations]` (illustrative only — not legal/regulatory advice)
 - **Board / executive reporting:** quarterly metric — "confirmed partner-side incidents per quarter"; "XTAS-drift detections per quarter" (partners whose activity gained scope without governance approval); trend matters more than absolute number
 - **Incident response runbook:** B2B-partner-side incident has a distinct playbook from insider-risk — partner-tenant notification + joint-investigation + potential contract clause invocation; this policy is the primary detect signal feeding that playbook
 - **DPIA refresh:** every annual DPIA cycle includes a review of the external-user-activity processing scope, cross-correlation data sources, and partner-controller mapping

@@ -1,14 +1,16 @@
 # Auto-label PCI data
 
 > Status: v0.0 — MDA column lens-reviewed from playbook v1; other vendors `[unverified]`.
-> Depth: **Tier 2 — deep-dive** (exemplar of the enhanced policy-file template).
+> Depth: **Tier 2 — deep-dive (Microsoft-standards QA applied 2026-06-10)**.
 > Required capabilities: [API-mode DLP + sensitivity-labelling integration](../../02-capabilities/capability-matrix.md).
 > Deployment-mode requirement: API connector + Purview (or equivalent labelling platform).
-> MDA playbook reference: [Policy 6](../../04-vendors/microsoft-defender-for-cloud-apps.md) (Auto-label PCI files in OneDrive/SharePoint).
+> MDA playbook reference: [Policy 6](../../04-vendors/microsoft-defender-for-cloud-apps.md) (Auto-label PCI files in OneDrive/SharePoint). *("Policy 6" is internal playbook numbering, not Microsoft documentation.)*
 
 ## Purpose
 
 Continuously scan sanctioned SaaS storage for files containing PCI cardholder data; auto-apply a Confidential-Finance sensitivity label that carries encryption + access restrictions via the labelling platform. Reduces cardholder-data sprawl. Precondition for downstream encryption controls and the inline download-block policy.
+
+Microsoft architectural anchor: **Data Zero Trust pillar Objectives I (know your data) and II (protect your data)** — automated classification + label-driven protection of sensitive data at rest is the documented Microsoft pattern for this control class. [Microsoft Learn: https://learn.microsoft.com/en-us/security/zero-trust/deploy/data]
 
 ## What organisations use this for
 
@@ -51,7 +53,7 @@ Typical 12-week rollout sequence for a tier-2 BFSI tenant new to Purview labelli
 | W1-W2 | Label taxonomy design (Confidential-Finance variants); Purview label creation; label-publishing scope decision | Label published to pilot user scope; encryption + permissions configured |
 | W3-W4 | DCS pilot on small folder set (1 finance folder, ~100 files), action = Alert-only | Initial FP rate baseline; per-SIT confidence threshold tuning |
 | W5-W6 | Expand pilot to one BU (Cards or Finance); still alert-only | Per-BU FP rate; exclusion list (test data folders, QA sample folders, historical archives) |
-| W7-W8 | Custom SITs for known mock-data patterns (e.g. 4111-1111 family, vendor-specific test cards); per-SIT confidence threshold + minimum-violations threshold tuning | FP rate stabilised at acceptable level (typically <10%) |
+| W7-W8 | Custom SITs for known mock-data patterns (e.g. 4111-1111 family, vendor-specific test cards); per-SIT confidence level + instance count tuning | FP rate stabilised at acceptable level (typically <10%) |
 | W9-W10 | Flip to label-apply action for pilot BU; monitor user / downstream-recipient friction | Encryption-aware downstream consumers identified (Outlook recipients, external partners with no label-rights); exception path documented |
 | W11-W12 | Broaden to remaining in-scope BUs | First quarterly audit-evidence pull tested |
 | W13+ | Steady-state — monthly tuning + quarterly attestation cycle | Audit-evidence package becomes a reusable deliverable |
@@ -60,7 +62,7 @@ The pilot phase is the work. Flipping to label-apply across the whole tenant on 
 
 ## Action
 
-- Primary: **apply sensitivity label** with encryption + permissions on detection
+- Primary: **Apply Microsoft Purview sensitivity label** (Microsoft documented governance-action name) with encryption + permissions on detection
 - Phase-1 alternative: **alert-only** for at least 1 week to baseline FP rate before flipping to label-apply
 
 ## Scope
@@ -75,7 +77,7 @@ The pilot phase is the work. Flipping to label-apply across the whole tenant on 
 
 | Vendor | Console path | Key configuration values | Deployment-mode caveat | Known trap |
 |---|---|---|---|---|
-| MDA | Defender portal → Cloud apps → Policies → Policy management → Information protection → Create File policy. Plus Purview label configured at Purview portal → Information Protection → Labels | App filter = OneDrive + SharePoint; Parent folder = scoped to finance / CHD folders on rollout; Inspection method = Data Classification Service; SIT = Credit Card Number; Minimum violations = 5; Governance action = Apply Microsoft Purview sensitivity label → Confidential-Finance; Alert + email per match | API-mode — post-upload labelling, not pre-upload prevention. Label-encryption does NOT propagate to existing co-author sessions until they reopen | The 100-character matching-content preview is itself cardholder data — lives in Defender's incident metadata, subject to PCI DSS 3.4 / 3.5 storage controls. Label silently fails if Purview label is not published to affected users OR if DCS is not onboarded to the SharePoint sites. Validate end-to-end with a known-positive test file before broad rollout |
+| MDA | Microsoft Defender Portal → Cloud Apps → Policies → Policy management → Information protection → Create File policy. Plus Purview label configured at Microsoft Purview portal → Information Protection → Labels | App filter = OneDrive + SharePoint; Parent folder = scoped to finance / CHD folders on rollout; Inspection method = Data Classification Service; SIT = Credit Card Number; instance count (`minCount`) = 5; confidence level = High; Governance action = **Apply Microsoft Purview sensitivity label** → Confidential-Finance; Alert + email per match | API-mode — post-upload labelling, not pre-upload prevention. Label-encryption does NOT propagate to existing co-author sessions until they reopen | The 100-character matching-content preview is itself cardholder data — lives in Defender's incident metadata, subject to PCI DSS 3.4 / 3.5 storage controls. Label silently fails if Purview label is not published to affected users OR if DCS is not onboarded to the SharePoint sites. Validate end-to-end with a known-positive test file before broad rollout |
 | Netskope | `[unverified]` — Netskope CASB API + native labelling integration | | | |
 | Palo Alto Prisma Access | `[unverified]` — SaaS Security with sensitivity-label-apply action | | | |
 | Skyhigh | `[unverified]` — Skyhigh CASB with labelling | | | |
@@ -83,7 +85,7 @@ The pilot phase is the work. Flipping to label-apply across the whole tenant on 
 
 ## Worked configuration example (tier-2 BFSI baseline)
 
-Anonymised configuration values for a tier-2 ASEAN BFSI tenant after FP-tuning is complete:
+Anonymised configuration values for a tier-2 ASEAN BFSI tenant after FP-tuning is complete. Parameter names align with Microsoft Purview SIT terminology: **instance count** (`minCount` / `maxCount`) and **confidence level** (`confidenceLevel`) rather than synthetic `minimum_violations` / numeric-confidence-percent vocabulary. [Microsoft Learn: https://learn.microsoft.com/en-us/purview/sit-modify-a-custom-sensitive-information-type]
 
 ```yaml
 policy:
@@ -105,13 +107,13 @@ policy:
     method: DataClassificationService
     sensitive_information_types:
       - id: "credit-card-number"
-        confidence: 75              # high-confidence only; reduces FP from numeric-format collisions
-        minimum_violations: 5
+        confidenceLevel: High           # Microsoft SIT confidence-level enum; reduces FP from numeric-format collisions
+        minCount: 5                     # instance count — minimum unique matches required
       - id: "custom-sit:internal-bin-list"   # custom SIT for the firm's own BIN ranges
-        confidence: 85
-        minimum_violations: 1
+        confidenceLevel: High
+        minCount: 1
   governance:
-    action: ApplyPurviewSensitivityLabel
+    action: "Apply Microsoft Purview sensitivity label"   # Microsoft documented governance-action name
     label: "Confidential-Finance-CHD"
     apply_to:
       - existing_files: true        # scan backlog
@@ -126,7 +128,7 @@ policy:
     access_control: ["pci-dlp-admin-group"]
 ```
 
-The `confidence: 75` + `minimum_violations: 5` combination is the typical post-tuning baseline. Lower confidence + lower violations = noise. Higher = misses legitimate cardholder data in formats DCS extracts imperfectly.
+The High-confidence + instance-count-5 combination is the typical post-tuning baseline. Lower confidence + lower instance count = noise. Higher = misses legitimate cardholder data in formats DCS extracts imperfectly.
 
 ## Variants
 
@@ -142,12 +144,19 @@ The `confidence: 75` + `minimum_violations: 5` combination is the typical post-t
 
 - **Immature:** one policy, tenant-wide, Alert-only, FP rate >40%, label-application disabled, no exception process, no integration with audit cycle. Common at 6 months post-deployment for under-resourced programmes.
 - **Mature:** per-BU policies scoped to known CHD folder sets, FP rate <10%, label-application live with documented exception path, quarterly audit-evidence pull tested, integrated with PCI DSS Req. 3.4 / 3.5 attestation cycle.
-- **Advanced:** Adaptive Protection integration (Purview IRM signal-boost on label-application events); multi-jurisdiction residency-aware labels with geo-policy enforcement; classifier confidence tuned per-BU; per-label downstream-recipient access governance integrated with B2B partner-tenant Cross-Tenant Access Settings.
+- **Advanced:** **Purview Adaptive Protection** integration (insider-risk signal boost on label-application events; Adaptive Protection now wires into DLP, DLM, and Conditional Access — not just CA); multi-jurisdiction residency-aware labels with geo-policy enforcement; classifier confidence level tuned per-BU; per-label downstream-recipient access governance integrated with B2B partner-tenant Cross-Tenant Access Settings. [Microsoft Learn: https://learn.microsoft.com/en-us/purview/insider-risk-management-adaptive-protection]
 
 ## Control mappings
 
-- PCI DSS v4.0 Req. 3 (protect cardholder data); Req. 3.4 (PAN unreadable); Req. 3.5 (key management for stored PAN); Req. 7 (need-to-know access); Req. 12.10 (incident response — label-aware IR runbook)
-- BNM RMiT clause(s): [BNM RMiT data classification + DLP](../../06-compliance/malaysia/bnm-rmit.md) `[VERIFY against current edition]`
+- **CIS Microsoft 365 Foundations Benchmark v5.0.0 (30 April 2025):**
+  - **CIS 3.3.1 (L1)** — *primary map*: Ensure DLP policies are enabled (the umbrella for Purview/MDA labelling and DLP enforcement).
+  - **CIS 3.2.1 (L1)** — Ensure SharePoint Online Information Protection policies are set up and used.
+  - **CIS 9.1.6 (L1)** — relevant compensating control on sensitivity-label coverage.
+  - **CIS 2.4.3 (L2)** — Ensure Microsoft Defender for Cloud Apps is enabled (umbrella for the MDA file-policy mechanism).
+- **Microsoft Secure Score** — Data group improvement actions ("Enable Microsoft Purview Information Protection sensitivity labels", "Configure DLP policies", scope-coverage actions). Current Secure Score grouping is four-group (Identity / Device / Apps / Data); the legacy five-group structure including Infrastructure is retired. [Microsoft Learn: https://learn.microsoft.com/en-us/defender-xdr/microsoft-secure-score] [Microsoft Learn: https://learn.microsoft.com/en-us/defender-xdr/microsoft-secure-score-improvement-actions]
+- **Microsoft Zero Trust — Data pillar Objectives I (know your data) and II (protect your data).** [Microsoft Learn: https://learn.microsoft.com/en-us/security/zero-trust/deploy/data]
+- PCI DSS v4.0 Req. 3 (protect cardholder data); Req. 3.4 (PAN unreadable); Req. 3.5 (key management for stored PAN); Req. 7 (need-to-know access); Req. 12.10 (incident response — label-aware IR runbook). *Illustrative cross-reference; not a substitute for QSA assessment.*
+- BNM RMiT clause(s): [BNM RMiT data classification + DLP](../../06-compliance/malaysia/bnm-rmit.md) `[VERIFY against current edition]`. *Illustrative; not regulatory advice.*
 - ISO 27017 control(s): [CLD.12.4.5 monitoring](../../06-compliance/iso-27017.md) `[VERIFY]`
 - ISO 27018 control(s): A.10 (use limitation), A.12 (information security)
 - NIST CSF 2.0 subcategory(ies): `PR.DS-01` (data-at-rest), `PR.DS-05` (data leak protection), `ID.AM-05` (data classification) `[VERIFY]`
@@ -162,17 +171,19 @@ The `confidence: 75` + `minimum_violations: 5` combination is the typical post-t
 
 ## Real-world FP experience
 
+*Practitioner-observed ranges; not from Microsoft documentation. Validate against tenant baseline.*
+
 Typical FP-rate trajectory in a tier-2 BFSI tenant new to Purview labelling:
 
 | Week | Typical FP rate | Dominant cause |
 |---|---|---|
 | W1 | 60-80% | Mock cards in QA folders + training material + numeric ID columns matching Luhn |
-| W4 | 25-35% | After per-SIT confidence threshold tuning (raise from default ~50% to 75%); after folder allowlist for known QA/test paths |
+| W4 | 25-35% | After per-SIT confidence-level raise (default Medium → High); after folder allowlist for known QA/test paths |
 | W8 | 10-15% | After custom SIT for internal BIN ranges + after exclusion of historical archive folders |
 | W12 | 5-10% | Mature exclusion lists; per-BU policies; documented exception path |
 | Steady-state | 2-5% | Quarterly tuning cycle catches new noise sources before they grow |
 
-Named FP scenarios encountered repeatedly across deployments:
+Named FP scenarios encountered repeatedly across deployments (practitioner observation):
 
 | Scenario | Mitigation |
 |---|---|
@@ -196,13 +207,15 @@ Typical staffing: 0.5 FTE for the platform admin during the 12-week ramp; 0.2 FT
 - The matching-content snippet contains PCI cardholder data — itself regulated content under PCI DSS 3.4 / 3.5
 - Document where the snippet is stored, who can access it, retention. The auditor will probe. Default: 90-day retention; admin-group-restricted access; explicit access-log review monthly
 - For OneDrive personal-area folders, some tenants treat OneDrive as personal scope — content inspection has PDPA / GDPR implications. Workforce-notice posture must cover the scanning of personal-folder areas
-- Cross-border transfer: where DCS scanning happens vs where the tenant data resides. For Malaysian / Singapore / Hong Kong tenants, Japan East primary-data region (added 2025 H2) made the cross-border story materially better
+- Cross-border transfer: where DCS scanning happens vs where the tenant data resides. For Malaysian / Singapore / Hong Kong tenants, Japan East as a Microsoft 365 primary-data region materially improves the cross-border story. [VERIFY against current Microsoft Cloud regions page — https://learn.microsoft.com/en-us/microsoft-365/enterprise/o365-data-locations]
 
 ## Integration with broader programmes
 
 - **PCI DSS audit cycle:** Purview label-application audit log + labelled-file count by BU feeds Req. 3.4 / 3.5 / 7 attestation evidence. Quarterly pull; annual auditor pull
+- **Purview eDiscovery:** label-application events and labelled-file inventories are discoverable through the new eDiscovery experience in the Microsoft Purview portal. (Note: classic eDiscovery experiences were retired 2025-08-31; use "Purview eDiscovery" rather than the legacy "eDiscovery (Premium)" framing.) [Microsoft Learn: https://learn.microsoft.com/en-us/purview/ediscovery-overview]
 - **Board reporting:** quarterly metric — "% of in-scope cardholder data labelled vs estimated total" (driven by Discovery + this policy); trend matters more than absolute number
 - **Incident response runbook:** labelled-file count provides the IR scoping signal — if a data-loss event involves labelled-files, the scope is reduced (label encryption protects); if it involves unlabelled-but-CHD-class content, the scope is larger
+- **Adaptive Protection wiring:** label-application events can feed Microsoft Purview Adaptive Protection, which now signals into DLP, DLM, and Conditional Access (not Conditional Access alone). [Microsoft Learn: https://learn.microsoft.com/en-us/purview/insider-risk-management-adaptive-protection]
 - **DPIA refresh:** every annual DPIA cycle includes a review of the Purview-DCS scanning scope, the matching-content snippet retention, and the workforce-monitoring posture
 - **Vendor-risk programme:** the Microsoft Purview side becomes a sub-processor relationship — sub-processor list, attestation pull (SOC 2 + ISO 27018), DPA review
 
@@ -214,7 +227,7 @@ Typical staffing: 0.5 FTE for the platform admin during the 12-week ramp; 0.2 FT
 4. **"Apply encryption on initial rollout without recipient-side preparation"** — breaks external recipients who don't have label-decryption rights; trust crisis with business partners
 5. **"Treat the matching-content snippet as harmless metadata"** — it IS cardholder data; PCI DSS 3.4 / 3.5 controls apply to it. Auditor finds the snippet store, programme fails the control
 6. **"Ignore mock-data exclusion until the auditor complains"** — by the time the auditor sees the noise, the analyst team has already learned to ignore alerts in general; the cultural fix is months of work
-7. **"Use the vendor's default Credit Card SIT confidence (~50%)"** — produces the W1 60-80% FP rate; must raise to 75% minimum for any production deployment
+7. **"Use the vendor's default Credit Card SIT confidence level (Medium)"** — produces the W1 60-80% FP rate; raise to High confidence level for any production deployment (practitioner observation)
 8. **"Skip the per-BU phasing and do tenant-wide at once"** — the exception backlog overwhelms the help desk; programme rolls back
 
 ## Coverage gaps
@@ -223,7 +236,7 @@ Typical staffing: 0.5 FTE for the platform admin during the 12-week ramp; 0.2 FT
 - Files larger than DCS content-inspection limit — unscannable; tagged `Corrupt file` or skipped
 - Files protected by user-applied RMS or password — see [`../../08-failure-modes/encrypted-upload-bypass.md`](../../08-failure-modes/encrypted-upload-bypass.md)
 - [API mode is not prevention](../../08-failure-modes/api-mode-is-not-prevention.md) — file existed in tenant before labelling completes
-- File-policy ceiling = 200 per tenant (verify against current docs); cardholder-data scope often consumes 3-5 policies (per app × per label family)
+- **File-policy ceiling = 50 per tenant** per Microsoft Learn `data-protection-policies` Limitations section (current as of 2026-06; the earlier "200" figure circulated in practitioner notes is stale). Cardholder-data scope often consumes 3-5 of those 50 slots (per app × per label family) — non-trivial budget pressure when the same tenant also runs share-link-quarantine, at-rest-quarantine, and other File policies. [Microsoft Learn: https://learn.microsoft.com/en-us/defender-cloud-apps/data-protection-policies]
 - Multi-geo SharePoint — supported "only for OneDrive" per the M365 connector docs
 
 ## Three-lens sign-off

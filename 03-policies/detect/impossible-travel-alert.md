@@ -1,14 +1,16 @@
 # Impossible-travel alert
 
 > Status: v0.0 — MDA column lens-reviewed from playbook v1; other vendors `[unverified]`.
-> Depth: **Tier 2 — deep-dive**.
+> Depth: **Tier 2 — deep-dive (Microsoft-standards QA applied 2026-06-10)**.
 > Required capabilities: [Compromised-account detection (impossible travel)](../../02-capabilities/capability-matrix.md).
 > Deployment-mode requirement: API connector. Entra-as-IdP for governance signal.
-> MDA playbook reference: [Policy 4](../../04-vendors/microsoft-defender-for-cloud-apps.md) (Impossible travel + activity from infrequent country).
+> MDA playbook reference: [Policy 4](../../04-vendors/microsoft-defender-for-cloud-apps.md) (Impossible travel + activity from infrequent country). **"Policy 4" is internal repo numbering — not Microsoft Learn nomenclature.**
 
 ## Purpose
 
 Detect sign-in patterns that are geographically infeasible within the observed time window — credit-stuffing botnet / compromised-credential pattern. Counters MITRE ATT&CK `T1078.004 Cloud Accounts` (Detect, low-fidelity). **Important:** the dominant 2024-2026 intrusion pattern (T1566.002 → T1528 → T1550.001 token-replay from residential-proxy infrastructure) produces zero impossible-travel signal. Treat this control as **naive credential-stuffing-only**.
+
+> **June 2025 anomaly-policy wave (applies to all MDA detect/* policies).** Several built-in anomaly policies were transitioned to a dynamic-threat-detection model in June 2025 and renamed — *Activity from suspicious IP addresses*, *Suspicious inbox forwarding*, *Suspicious inbox manipulation rules*, *Activity from anonymous IP addresses*, *Ransomware activity*, *Suspicious file access activity by user*, *Unusual ISP for an OAuth App*, *Suspicious email deletion activity*. The Impossible Travel anomaly itself was **not** disabled in that wave, but its operator-facing context (sibling policies in the same Threat detections group) changed materially. Source: [Microsoft Learn: https://learn.microsoft.com/en-us/defender-cloud-apps/anomaly-detection-policy] — Important notice.
 
 ## What organisations use this for
 
@@ -33,7 +35,7 @@ The real architectural decision attached to this policy is not "do we enable it"
 ### Use case 3 — Merchant acquirer, post-Storm-2372-style OAuth cleanup pairing
 
 - **Org type:** payments processor, multi-jurisdiction (MY / SG / HK / TH), ~4k employees, M365 E5 + Salesforce + Workday
-- **Trigger:** 2025 H2 incident-response after a Storm-2372-class device-code phishing campaign hit a partner ecosystem; CISO asked "if a partner-tenant identity is compromised and the attacker pivots into our tenant via legitimate token, do we see it?". The honest answer was no — token-replay from residential proxy produces no impossible-travel signal. The policy was kept (cheap) and a parallel Entra ID Protection / Token Protection workstream was funded
+- **Trigger:** 2025 H2 incident-response after a Storm-2372-class device-code phishing campaign hit a partner ecosystem (Microsoft Threat Intel canonical naming — Storm-* cluster naming retained per [Microsoft Learn: https://learn.microsoft.com/en-us/unified-secops/microsoft-threat-actor-naming]; related Iranian-nexus consent-phishing activity is tracked by Microsoft as **Mint Sandstorm**, not the Proofpoint label TA453); CISO asked "if a partner-tenant identity is compromised and the attacker pivots into our tenant via legitimate token, do we see it?". The honest answer was no — token-replay from residential proxy produces no impossible-travel signal. The policy was kept (cheap) and a parallel Entra ID Protection / Token Protection workstream was funded
 - **Scope:** all employees + B2B guests; Sensitivity = Low; Frequent-travellers group built from Workday business-travel records (refreshed monthly); alert correlated with Entra ID Protection user-risk score and Continuous Access Evaluation events in Sentinel
 - **Outcome:** the decision to **pair** MDA impossible-travel + Entra ID Protection + Token Protection (verify GA status) was the actual win — the impossible-travel signal alone caught 0 of 2 token-replay incidents that year; the paired control caught both via Token Protection re-evaluation. Programme treats this policy as a low-fidelity input, not the decision
 
@@ -80,7 +82,7 @@ The W6 pairing is the work that matters. A programme that stops at W4 has a cont
 
 | Vendor | Console path | Key configuration values | Deployment-mode caveat | Known trap |
 |---|---|---|---|---|
-| MDA | Defender portal → Cloud apps → Policies → Policy management → Threat detections → Anomaly detection policy → Impossible travel (built-in; edit, do not create) | Sensitivity slider = Low or Medium initially; Scope = all users; Exclude documented "Frequent travellers" group; Action = Alert only; alert destination = SOC L1 (Sentinel-forwarded) | API-mode; country-level granularity only; ML-based VPN / tenant-common-location suppression per Microsoft (independent FP rate not published); 7-day learning window per the built-in anomaly framework | **Country-level only — no alerts within the same country or between bordering countries.** KL ↔ SG ↔ JB produces no signal — material gap for MY FIs with cross-border insider scenarios. Defeated by T1550.001 token replay from residential-proxy infrastructure (modern intrusions produce zero signal). VPN-detection enrichment source may be silently unavailable — no documented operator notification for enrichment outage. Sensitivity slider exposes no numeric threshold — opaque tuning, all tuning is by trial-and-error |
+| MDA | Microsoft Defender Portal → Cloud Apps → Policies → Policy management → Threat detections → Anomaly detection policy → Impossible travel (built-in; edit, do not create) | Sensitivity slider = Low or Medium initially; Scope = all users; Exclude documented "Frequent travellers" group; Action = Alert only; alert destination = SOC L1 (Sentinel-forwarded) | API-mode; country/region-level granularity only; ML-based VPN / tenant-common-location suppression per Microsoft (independent FP rate not published); 7-day learning window per the built-in anomaly framework | **Country-level only — "there will be no alerts for two actions originating in the same country/region or in bordering countries/regions" per [Microsoft Learn: https://learn.microsoft.com/en-us/defender-cloud-apps/anomaly-detection-policy].** KL ↔ SG ↔ JB produces no signal — material gap for MY FIs with cross-border insider scenarios. Defeated by T1550.001 token replay from residential-proxy infrastructure (modern intrusions produce zero signal). VPN-detection enrichment source may be silently unavailable — no documented operator notification for enrichment outage. **Sensitivity slider exposes no numeric threshold** — opaque tuning, all tuning is by trial-and-error (Microsoft does not publish per-slider thresholds; same `anomaly-detection-policy` Microsoft Learn page documents the slider but not the underlying values — practitioner observation that tuning is therefore empirical) |
 | Netskope | `[unverified]` — Netskope UEBA with impossible travel | | | |
 | Palo Alto Prisma Access | `[unverified]` — SaaS Security anomaly | | | |
 | Skyhigh | `[unverified]` — Skyhigh UEBA | | | |
@@ -146,17 +148,26 @@ The Sensitivity slider has no numeric semantics published by Microsoft — `Low`
 
 - **Immature:** built-in policy enabled at default Sensitivity; no exclusion group, or one that's months out of date; alerts route to a shared inbox no one reads; FP rate undocumented; no pairing with Entra ID Protection. Common at 12 months post-deployment for under-resourced FIs (Use case 4 archetype). The control is on the register but not operated
 - **Mature:** Sensitivity tuned to tenant-appropriate level; Frequent-travellers group sourced from a system of record (Workday business-travel, T&E system) and refreshed quarterly; alerts routed to SOC L1 with documented triage runbook; paired with Entra ID Protection sign-in risk + Conditional Access step-up; quarterly review measures alert volume + TP rate
-- **Advanced:** MDA impossible-travel is one of multiple signals feeding a UEBA correlation layer (Sentinel or third-party); per-user behavioural baseline considers individual travel patterns; Token Protection + Continuous Access Evaluation deployed to compensate for the token-replay bypass class; programme documents the policy explicitly as "naive credential-stuffing-only" on the control register and routes the real sign-in-risk decision through Entra ID Protection; the IRM Adaptive Protection integration (per MDA Policy 12) boosts the impossible-travel signal when corroborated with HR pre-departure flag
+- **Advanced:** MDA impossible-travel is one of multiple signals feeding a UEBA correlation layer (Sentinel or third-party); per-user behavioural baseline considers individual travel patterns; Token Protection + Continuous Access Evaluation deployed to compensate for the token-replay bypass class; programme documents the policy explicitly as "naive credential-stuffing-only" on the control register and routes the real sign-in-risk decision through Entra ID Protection; the Purview Insider Risk Management Adaptive Protection integration (referenced as internal "MDA Policy 12" in the linked playbook — internal numbering, not Microsoft documentation) boosts the impossible-travel signal when corroborated with HR pre-departure flag. Cite [Microsoft Learn: https://learn.microsoft.com/en-us/purview/insider-risk-management-adaptive-protection]. Note that Adaptive Protection now wires into DLP, DLM, and Conditional Access — not just Conditional Access alone
 
 ## Control mappings
 
-- BNM RMiT clause(s): [BNM RMiT cybersecurity operations](../../06-compliance/malaysia/bnm-rmit.md) `[VERIFY against current edition]`
-- MAS TRM equivalent — sign-in-anomaly monitoring expectation `[VERIFY]`
-- ISO 27001:2022 `A.5.16 Identity management`, `A.8.5 Secure authentication`, `A.8.15 Logging` `[VERIFY]`
+- **CIS Microsoft 365 Foundations Benchmark v5.0.0 (30 April 2025):**
+  - CIS 2.4.3 (L2) — *Ensure Microsoft Defender for Cloud Apps is enabled and configured* (umbrella; Microsoft explicitly names "Impossible travel detection" as MDA-dependent in the CIS benchmark rationale)
+  - CIS 5.2.2.6 (L1) — *Ensure the user risk policy is enabled* (Entra ID Protection user-risk Conditional Access — the paired control that owns the user-impacting decision)
+  - CIS 5.2.2.7 (L1) — *Ensure the sign-in risk policy is enabled* (the high-fidelity signal; MDA impossible-travel corroborates)
+  - CIS 5.2.2.8 (L2) — *Ensure 'Sign-in frequency' is enabled and browser sessions are not persistent* (compensating control for the token-replay bypass class)
+- **Microsoft Secure Score (Identity group):** improvement actions in the Identity group cover the paired Entra ID Protection user-risk / sign-in-risk policies; MDA impossible-travel is a Defender-for-Cloud-Apps detection feeding the same posture. Cite [Microsoft Learn: https://learn.microsoft.com/en-us/defender-xdr/microsoft-secure-score] and [Microsoft Learn: https://learn.microsoft.com/en-us/defender-xdr/microsoft-secure-score-improvement-actions]. The current Secure Score taxonomy is four groups — Identity / Device / Apps / Data — not the legacy five-group structure
+- **Microsoft Zero Trust — Identity pillar Objective V (Threats are mitigated by Identity Protection signals):** the architectural anchor for this policy. Cite [Microsoft Learn: https://learn.microsoft.com/en-us/security/zero-trust/deploy/identity]. **Architectural attribution:** the user-impacting sign-in-risk decision is owned by Entra ID Protection + Conditional Access (Identity ZT pillar Objective V); MDA impossible-travel provides a corroborating activity signal
+- BNM RMiT clause(s): [BNM RMiT cybersecurity operations](../../06-compliance/malaysia/bnm-rmit.md) `[VERIFY against current edition]` *(illustrative — not regulatory advice)*
+- MAS TRM equivalent — sign-in-anomaly monitoring expectation `[VERIFY]` *(illustrative)*
+- ISO 27001:2022 `A.5.16 Identity management`, `A.8.5 Secure authentication`, `A.8.15 Logging` `[VERIFY against current edition]`
 - ISO 27017 control(s): [CLD.12.4.5 monitoring](../../06-compliance/iso-27017.md) `[VERIFY]`
 - ISO 27018 control(s): A.10 (use limitation — workforce-location data)
 - NIST CSF 2.0 subcategory(ies): `DE.AE-02` (event data analysed), `DE.CM-07` (unauthorised personnel monitored), `DE.CM-09` (computing hardware/software monitored), `ID.RA-03` (threats identified) `[VERIFY]`
-- PCI DSS v4.0 Req. 10.2.1 / 10.4 (anomaly detection on access events) where workforce touches CHD `[VERIFY]`
+- PCI DSS v4.0 Req. 10.2.1 / 10.4 (anomaly detection on access events) where workforce touches CHD `[VERIFY]` *(illustrative)*
+
+> **Regulatory-advice caveat.** Material on regulatory clauses, supervisory expectations, and audit thresholds in this file is illustrative — not legal or regulatory advice. Validate every regulatory citation against the current edition of the source instrument before relying on it for attestation.
 
 ## False-positive risk
 
@@ -169,7 +180,9 @@ The Sensitivity slider has no numeric semantics published by Microsoft — `Low`
 
 ## Real-world FP experience
 
-Typical FP-rate trajectory in a tier-2 BFSI tenant new to anomaly policies:
+Typical FP-rate trajectory in a tier-2 BFSI tenant new to anomaly policies.
+
+> Practitioner-observed ranges; not from Microsoft documentation. Validate against tenant baseline.
 
 | Week | Typical FP rate | Dominant cause |
 |---|---|---|
@@ -207,13 +220,13 @@ Typical staffing: 0.05 FTE platform admin (quarterly tuning + Frequent-traveller
 - IP-address-to-country geo-location accuracy is not a regulated-grade signal — workforce-monitoring decisions must not rest on geo-location alone
 - Workforce notice in employee handbook + AUP must cover sign-in monitoring scope (location, ISP, time, device fingerprint where collected)
 - DPIA scope: anomaly-detection on sign-in events + cross-correlation with HR data (where the programme integrates with IRM)
-- Cross-border consideration: the anomaly-detection processing happens in Microsoft's service region — for MY / SG / HK tenants, Japan East primary-data region (added 2025 H2) is relevant
+- Cross-border consideration: the anomaly-detection processing happens in Microsoft's service region — for MY / SG / HK tenants, Japan East primary-data region is relevant. Cite [Microsoft Learn: https://learn.microsoft.com/en-us/microsoft-365/enterprise/o365-data-locations] on the day of attestation. `[VERIFY against current Microsoft Cloud regions page — Japan East "added 2025 H2" claim is practitioner recall]`
 - Compensating-control framing: practitioners must explicitly state on the control register that this is naive-credential-stuffing-only, not modern-attack coverage. Misrepresenting the control's coverage to a supervisor / auditor is the worst case
 
 ## Integration with broader programmes
 
 - **Identity-and-access programme:** the actual high-fidelity signal lives in Entra ID Protection (sign-in risk + user risk); MDA impossible-travel is a corroborating input. Programme governance for both should sit with the IAM team, not the CASB team in isolation
-- **Insider Risk Management:** the impossible-travel signal can feed Purview IRM Indicators (per MDA Policy 12 — IRM signal-boost integration); standalone the signal is weak, correlated with HR pre-departure flag and OAuth-grant additions it gains fidelity
+- **Insider Risk Management:** the impossible-travel signal can feed Purview IRM Indicators (referenced as internal "MDA Policy 12 — IRM signal-boost integration" in the linked playbook; internal numbering, not Microsoft documentation); standalone the signal is weak, correlated with HR pre-departure flag and OAuth-grant additions it gains fidelity
 - **SOC runbook:** alert lands in SOC L1 queue; runbook correlates with `SigninLogs` (Entra), `IdentityInfo` (Defender XDR), `CloudAppEvents` (OAuth-grant additions in last 24h), Entra ID Protection user-risk score; decision tree for close-as-FP vs L2 escalation
 - **Annual audit cycle:** policy existence + measured FP rate + named-incident-investigation evidence feed the annual control-effectiveness review under SOX / NIS2 / equivalent operational-risk regimes; supervisory expectation is that the programme has documented the limitation (token-replay bypass) and has compensating controls (Entra Token Protection / CAE / sign-in-risk policies)
 - **Board reporting:** quarterly metric — alert volume + TP/FP rate + confirmed credential-stuffing or token-replay events; honest framing is that this is a baseline control, not a primary defence; trend matters more than absolute number
@@ -237,12 +250,12 @@ Typical staffing: 0.05 FTE platform admin (quarterly tuning + Frequent-traveller
 
 - T1550.001 token replay from residential-proxy infrastructure — bypass class; the dominant modern intrusion pattern produces zero signal here. Compensating control: Entra Token Protection (verify GA status), Continuous Access Evaluation forcing re-evaluation
 - T1556 Modify Authentication Process — attacker registers their MFA method before exfil, signs in cleanly from a colocated IP, no impossible-travel signal at exfil time. Compensating control: Entra `User registered alternative authentication device` audit + MFA-method addition alerting
-- T1528 Steal Application Access Token — same colocation pattern; the consented OAuth grant runs from wherever the attacker has access; no sign-in event for the OAuth abuse itself. Compensating control: MDA OAuth post-consent cleanup (Policy 2) + App Governance Predictive Risk
+- T1528 Steal Application Access Token — same colocation pattern; the consented OAuth grant runs from wherever the attacker has access. The original consent event **is** audit-logged in Entra `AuditLogs` (Consent to application) — the gap this policy cannot close is the absence of fresh **interactive sign-in** events for subsequent OAuth-app-as-actor API calls, which therefore produce no impossible-travel signal even when the actor is geographically implausible. Compensating control: MDA OAuth post-consent cleanup (internal Policy 2 — see playbook reference) + App Governance behavioural-anomaly detection (dynamic detection model, June 2025) `[VERIFY exact Microsoft Learn branding for App Governance behavioural-anomaly feature]`
 - Same-country attacks — fundamental fidelity gap; KL ↔ SG / HK ↔ Shenzhen / cross-state US commute all invisible
 - Cloud-provider IP sign-ins (legitimate user scripting from AWS / Azure / GCP) — geo-located to provider HQ, can produce signal or be suppressed inconsistently
 - Personal VPN by the user (privacy-driven, not malicious) — recurring FP source
 - BYOD-mobile sign-ins via carrier WiFi geo-located to carrier HQ — recurring FP
-- Default 30-day activity-log retention (standard tier) — historical correlation requires Sentinel forwarding or unified data lake (90+90)
+- Default activity-log retention (standard tier) — historical correlation requires Sentinel forwarding or unified data lake. `[VERIFY: 30-day retention figure against current Microsoft Learn data-retention page for Defender for Cloud Apps / Defender XDR advanced hunting]` — **Practitioner inference** until a specific Microsoft Learn URL is cited (XDR advanced-hunting retention is documented separately from MDA activity-log retention)
 - See also [`../../08-failure-modes/token-replay-bypass.md`](../../08-failure-modes/token-replay-bypass.md) `[link-target may not yet exist]`
 
 ## Three-lens sign-off

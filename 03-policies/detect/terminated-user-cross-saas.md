@@ -1,14 +1,16 @@
 # Terminated user — cross-SaaS activity
 
 > Status: v0.0 — MDA column lens-reviewed from playbook v1; other vendors `[unverified]`.
-> Depth: **Tier 2 — deep-dive**
+> Depth: **Tier 2 — deep-dive (Microsoft-standards QA applied 2026-06-10)**
 > Required capabilities: [Compromised-account detection](../../02-capabilities/capability-matrix.md).
 > Deployment-mode requirement: API connector. Entra-as-IdP for the deletion signal.
-> MDA playbook reference: [Policy 10](../../04-vendors/microsoft-defender-for-cloud-apps.md) (Terminated-user activity in connected SaaS).
+> MDA playbook reference: Internal playbook Policy 10 — Terminated-user activity in connected SaaS (internal numbering; not Microsoft documentation). See [vendor file](../../04-vendors/microsoft-defender-for-cloud-apps.md).
 
 ## Purpose
 
-Detect cross-SaaS account activity after a user's Entra account is deleted. Catches the offboarding-gap class — terminated user retains a local account in a connected SaaS under a different email format, or holds non-user credentials (PATs, service-principal secrets, MFA bypass methods) added before departure. Counters MITRE ATT&CK `T1078.004 Cloud Accounts` (persistence), `T1136 Create Account` (where the user created a SaaS-local account before leaving), `T1098.001 Additional Cloud Credentials` (pre-termination credential additions), `T1556` (MFA-method additions pre-termination).
+Detect cross-SaaS account activity after a user's Entra account is deleted. Catches the offboarding-gap class — terminated user retains a local account in a connected SaaS under a different email format, or holds non-user credentials (PATs, service-principal secrets, MFA bypass methods) added before departure. Counters MITRE ATT&CK `T1078.004 Cloud Accounts` (persistence), `T1136.003 Cloud Account` (where the user created a SaaS-local cloud account before leaving — sub-technique precision per ATT&CK Enterprise v17), `T1098.001 Additional Cloud Credentials` (pre-termination credential additions), `T1556` (MFA-method additions pre-termination).
+
+> **June 2025 anomaly-policy wave (corroborating cross-reference).** Several built-in anomaly policies were transitioned to a dynamic-threat-detection model in June 2025 and renamed — Activity from suspicious IP addresses, Suspicious inbox forwarding, Suspicious inbox manipulation rules, Activity from anonymous IP addresses, Ransomware activity, Suspicious file access activity by user, Unusual ISP for an OAuth App, Suspicious email deletion activity. The built-in this policy depends on — "Activity performed by terminated user" — was **not** part of the June 2025 wave and remains live. Source: [Microsoft Learn: https://learn.microsoft.com/en-us/defender-cloud-apps/anomaly-detection-policy] (Important notice).
 
 ## What organisations use this for
 
@@ -82,7 +84,7 @@ The W2 identifier-mismatch sampling is the critical step. If 30% of the sample s
 
 | Vendor | Console path | Key configuration values | Deployment-mode caveat | Known trap |
 |---|---|---|---|---|
-| MDA | Defender portal → Cloud apps → Policies → Policy management → Threat detections → Anomaly detection policy → Activity performed by terminated user (built-in; edit, do not create) | Scope = all users; Per-app governance action = Notify admin + manual revoke; Severity = High; Alert to identity admin + SOC; no auto-suspend on non-Entra local accounts | API-mode; built-in anomaly; requires Entra-as-IdP for the deletion signal; correlation depends on shared identifier (usually email) between Entra deleted-user and SaaS-app account | **Correlation depends on exact-match email between Entra deleted-user and SaaS-app account.** If Entra UPN = `user.surname@corp.com` but Salesforce account = `surname.user@corp.com`, no match, no alert. Three additional offboarding sub-cases NOT covered by this built-in: (a) service-principal credentials / PATs / API keys added pre-termination — check Entra Audit `AppRoleAssignment` and `Add service principal credentials` events; (b) MFA-method additions / backup-email changes (T1556) — Entra Audit `User registered alternative authentication device`; (c) accounts created by terminated user in connected SaaS (T1136) — per-SaaS admin audit, not in MDA |
+| MDA | Microsoft Defender Portal → Cloud Apps → Policies → Policy management → Threat detections → Anomaly detection policy → Activity performed by terminated user (built-in; edit, do not create) | Scope = all users; Per-app governance action = Notify admin + manual revoke; Severity = High; Alert to identity admin + SOC; no auto-suspend on non-Entra local accounts | API-mode; built-in anomaly; requires Entra-as-IdP for the deletion signal; correlation depends on shared identifier (usually email) between Entra deleted-user and SaaS-app account per [Microsoft Learn: https://learn.microsoft.com/en-us/defender-cloud-apps/anomaly-detection-policy] | **Correlation depends on exact-match email between Entra deleted-user and SaaS-app account** per [Microsoft Learn: https://learn.microsoft.com/en-us/defender-cloud-apps/anomaly-detection-policy]. If Entra UPN = `user.surname@corp.com` but Salesforce account = `surname.user@corp.com`, no match, no alert. Three additional offboarding sub-cases NOT covered by this built-in: (a) service-principal credentials / PATs / API keys added pre-termination — check Entra Audit `AppRoleAssignment` and `Add service principal credentials` events; (b) MFA-method additions / backup-email changes (T1556) — Entra Audit `User registered alternative authentication device`; (c) accounts created by terminated user in connected SaaS (T1136.003) — per-SaaS admin audit, not in MDA |
 | Netskope | `[unverified]` — Netskope terminated-user correlation | | | |
 | Palo Alto Prisma Access | `[unverified]` — SaaS Security identity correlation | | | |
 | Skyhigh | `[unverified]` — Skyhigh terminated-user detection | | | |
@@ -171,12 +173,14 @@ The `NotifyAdminOnly` governance action is non-negotiable for non-Entra local ac
 
 - **Immature:** built-in policy enabled with default scope; no supplementary KQL; no quarterly reconciliation; no integration with HRIS termination event; no documented per-SaaS revoke playbook. The policy fires when it fires; alerts may or may not get actioned; auditor finding likely on first cycle. Common at 6 months post-deployment for tenants that turned on the built-in without an offboarding programme behind it
 - **Mature:** built-in policy + supplementary KQL for all three sub-cases + quarterly reconciliation against HRIS + documented per-SaaS revoke playbook + ServiceNow ticket integration. SLA from termination to evidence-of-revoke <24 hours. Auditor-evidence pull is a documented quarterly artefact. FP rate ~10-15%, driven by legitimate guest-account scenarios
-- **Advanced:** all of the above + automated revoke for SCIM-cascaded apps (within the SCIM 40-min latency window) + Purview IRM correlation (terminated-user signal boosted when other indicators present — see MDA Policy 12) + per-leaver risk-tiering (RMs / privileged users get same-day enhanced check) + Entra ID Governance Access Reviews as a forward-looking compensating control. Coverage extends to contractor / vendor / partner identities via Cross-Tenant Access Settings audit
+- **Advanced:** all of the above + automated revoke for SCIM-cascaded apps (within the SCIM ~40-min latency window — `[VERIFY against current Microsoft SCIM provisioning docs]`) + Purview IRM correlation (terminated-user signal boosted when other indicators present — see internal playbook Policy 12 *(internal numbering; not Microsoft documentation)*) + per-leaver risk-tiering (RMs / privileged users get same-day enhanced check) + Entra ID Governance Access Reviews as a forward-looking compensating control. Coverage extends to contractor / vendor / partner identities via Cross-Tenant Access Settings audit
 
 ## Control mappings
 
-- BNM RMiT clause(s): [BNM RMiT IAM + offboarding](../../06-compliance/malaysia/bnm-rmit.md) `[VERIFY clause — IAM lifecycle / privileged-access lifecycle]`
-- MAS TRM clause(s): access termination expectations `[VERIFY]`
+- **CIS Microsoft 365 Foundations Benchmark v5.0.0** (30 April 2025): CIS 5.1.6.2 (L1) — guest-user lifecycle; CIS 5.3.2 (L1) — access reviews for privileged roles; CIS 5.3.3 (L1) — access reviews for guests; CIS 2.4.3 (L2) — umbrella requirement for MDA-dependent detections including terminated-user activity. Tier split: L1 (offboarding intent), L2 (MDA built-in dependency).
+- **Microsoft Secure Score** — Identity group improvement actions covering account lifecycle and access reviews. [Microsoft Learn: https://learn.microsoft.com/en-us/defender-xdr/microsoft-secure-score]; [Microsoft Learn: https://learn.microsoft.com/en-us/defender-xdr/microsoft-secure-score-improvement-actions]. Note: current Secure Score structure is the four-group form (Identity / Device / Apps / Data); the legacy five-group form including Infrastructure is deprecated.
+- BNM RMiT clause(s): [BNM RMiT IAM + offboarding](../../06-compliance/malaysia/bnm-rmit.md) `[VERIFY clause — IAM lifecycle / privileged-access lifecycle]`. Illustrative only; not regulatory advice.
+- MAS TRM clause(s): access termination expectations `[VERIFY]`. Illustrative only; not regulatory advice.
 - ISO 27017 control(s): [CLD.9.x access control overlay; CLD.8.1.5 removal of assets](../../06-compliance/iso-27017.md) `[VERIFY]`
 - ISO 27018 control(s): A.10 (use limitation)
 - NIST CSF 2.0 subcategory(ies): `PR.AA-05` (access permissions), `PR.AA-04` (identities removed when no longer needed), `DE.CM-09` `[VERIFY]`
@@ -192,7 +196,7 @@ The `NotifyAdminOnly` governance action is non-negotiable for non-Entra local ac
 
 ## Real-world FP experience
 
-Typical FP-rate trajectory:
+Typical FP-rate trajectory (**practitioner-observed ranges; not from Microsoft documentation. Validate against tenant baseline.**):
 
 | Week | Typical FP rate | Dominant cause |
 |---|---|---|
@@ -239,7 +243,7 @@ Typical staffing: 0.1 FTE platform admin (policy tuning + supplementary KQL main
 - **Internal audit cycle:** quarterly orphan-reconciliation + annual policy-effectiveness review feed the IAM-controls section of the annual internal audit (mapping to BNM RMiT IAM expectations / equivalent regional supervisory expectations). Auditor-evidence pull: the alert log + the quarterly reconciliation worksheet + the ServiceNow ticket trail
 - **Incident response runbook:** any policy-fire that resolves to a TP triggers the "departed-user credential reuse" IR playbook — preservation hold, HR / Legal notification, investigation under privileged process. The IR runbook is shared with the mass-download-alert policy's IR runbook
 - **Board / executive reporting:** quarterly metric — "leavers with detected cross-SaaS residual activity / total leavers" — trend matters more than absolute count; named-incident summary (sanitised) where TP rate produces a confirmed event
-- **Insider Risk Management:** terminated-user signal becomes a Purview IRM indicator in mature deployments (per MDA Policy 12); correlation with pre-departure mass-download alerts, anomalous-email-forward, anomalous-print produces high-fidelity pre-resignation patterns
+- **Insider Risk Management:** terminated-user signal becomes a Purview IRM indicator in mature deployments (per internal playbook Policy 12 — internal numbering, not Microsoft documentation); correlation with pre-departure mass-download alerts, anomalous-email-forward, anomalous-print produces high-fidelity pre-resignation patterns. **Practitioner inference:** the IRM-correlation lift on terminated-user is field observation, not a Microsoft-documented enrichment.
 - **Vendor-risk programme:** the policy is a downstream consumer of HRIS data quality + Entra delete-event timeliness — both are dependencies that the vendor-risk register tracks
 - **Identity governance:** Entra ID Governance Access Reviews + Lifecycle Workflows are the forward-looking compensating controls; this policy is the backstop when those fail or miss a non-Entra local account
 - **Regulatory disclosure path:** for tier-1 BFSI in MY / SG / HK, a confirmed departed-employee credential-reuse incident with material customer-data implication may trigger supervisory notification (BNM / MAS / HKMA). The alert log is the primary timeline evidence — illustrative only, not legal/regulatory advice `[VERIFY]`
@@ -260,9 +264,9 @@ Typical staffing: 0.1 FTE platform admin (policy tuning + supplementary KQL main
 ## Coverage gaps
 
 - Non-email-matched accounts (different identifier format between Entra and SaaS local) — built-in policy silently misses; only supplementary KQL + quarterly reconciliation catches
-- Service-principal abuse — pre-departure credential additions; T1098.001 not covered by this built-in (see [OAuth blind spot](../../08-failure-modes/oauth-blind-spot.md))
+- Service-principal abuse — pre-departure credential additions; T1098.001 not covered by this built-in. Workload identity lifecycle (credentials, sign-in risk, conditional access for service principals) is the Entra **Workload Identities Premium** control surface — separately licensed from Entra ID P1/P2. [Microsoft Learn: https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-overview] `[VERIFY licensing tier on current Entra pricing page]`. See also [OAuth blind spot](../../08-failure-modes/oauth-blind-spot.md).
 - MFA-method additions before departure (T1556) — separate Entra Audit-log query required (MDA playbook Appendix B.4)
-- Per-SaaS account creation by leaver pre-termination (T1136) — per-SaaS admin audit, not in MDA
+- Per-SaaS account creation by leaver pre-termination (T1136.003 Cloud Account — sub-technique precision per ATT&CK Enterprise v17) — per-SaaS admin audit, not in MDA
 - Personal-account exfil before departure — invisible to this control; see mass-download-alert policy for the volumetric pre-departure pattern
 - Hybrid-AD users with `onPremisesSyncEnabled=true` and no writeback — Entra delete silently fails; supplementary `IdentityInfo` validation needed
 - GitHub Enterprise non-EMU setups — email-based linking, not SCIM-cascaded; manual revoke required
